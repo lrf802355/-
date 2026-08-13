@@ -288,7 +288,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             year = params.get('year', ['2026'])[0]
             hotel_id = params.get('hotel_id', [None])[0]
 
-            # 确保预聚合表最新（增量更新当前月）
+            # 确保预聚合表最新（全量重建，与每日明细同口径）
             self._refresh_monthly_agg()
 
             conn = self._db()
@@ -308,21 +308,43 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return self.send_json({"code": 500, "msg": str(e)}, 500)
 
     def _refresh_monthly_agg(self):
-        """增量更新月度预聚合表（只重算当前月，历史月不动）"""
-        import sqlite3
-        from datetime import datetime
+        """全量重建月度预聚合表，与「每日在住人数明细」同一口径：
+        每天优先取实际快照(daily_residents)，没有快照的日期用收入流水人次补齐，
+        再按月汇总，保证两个子模块数据一致。
+        """
         try:
-            cur_ym = datetime.now().strftime("%Y-%m")
             conn = self._db()
             c = conn.cursor()
-            # 删除当前月，重算
-            c.execute("DELETE FROM income_flow_monthly WHERE ym=?", (cur_ym,))
-            c.execute("""INSERT OR REPLACE INTO income_flow_monthly
-                         SELECT SUBSTR(create_time,1,7) ym, hotel_id, hotel_name, COUNT(*), COALESCE(SUM(real_money),0)
-                         FROM income_flow WHERE create_time LIKE ? AND business_type_name != ''
-                           AND business_type_name NOT LIKE '%消费%' AND business_type_name != '起步房价'
-                           AND business_type_name != '超时房价'
-                         GROUP BY ym, hotel_id, hotel_name""", (cur_ym + '%',))
+            conn.execute("BEGIN IMMEDIATE")
+            c.execute("DELETE FROM income_flow_monthly")
+            c.execute("""INSERT OR REPLACE INTO income_flow_monthly (ym, hotel_id, hotel_name, cnt, income)
+                         WITH income_daily AS (
+                             SELECT hotel_id, hotel_name,
+                                    SUBSTR(create_time,1,10) AS d,
+                                    COUNT(*) AS cnt,
+                                    COALESCE(SUM(real_money),0) AS money
+                             FROM income_flow
+                             WHERE business_type_name != ''
+                               AND business_type_name NOT LIKE '%消费%'
+                               AND business_type_name != '起步房价'
+                               AND business_type_name != '超时房价'
+                             GROUP BY hotel_id, hotel_name, d
+                         ),
+                         merged AS (
+                             SELECT i.hotel_id, i.hotel_name, i.d, i.cnt, i.money
+                             FROM income_daily i
+                             LEFT JOIN daily_residents s
+                                    ON s.hotel_id = i.hotel_id AND s.snap_date = i.d
+                             WHERE s.snap_date IS NULL
+                             UNION ALL
+                             SELECT s.hotel_id, s.hotel_name, s.snap_date,
+                                    s.resident_count, 0
+                             FROM daily_residents s
+                         )
+                         SELECT SUBSTR(d,1,7) AS ym, hotel_id, hotel_name,
+                                SUM(cnt), SUM(money)
+                         FROM merged
+                         GROUP BY ym, hotel_id, hotel_name""")
             conn.commit()
             conn.close()
         except Exception:
