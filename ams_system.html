@@ -1,0 +1,2929 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作台</title>
+    <style>
+        /* ========== 设计令牌（Design Tokens） ========== */
+        :root {
+            /* 表面分层（飞书风：浅色明亮） */
+            --surface-0: #ffffff;
+            --surface-1: #ffffff;
+            --surface-2: #fafbfc;
+            --surface-3: #f2f3f5;
+            --surface-hover: rgba(242, 243, 245, 0.8);
+            --surface-active: rgba(51, 112, 255, 0.08);
+
+            /* 颜色（飞书蓝主调） */
+            --primary: #3370ff;
+            --primary-strong: #2660e8;
+            --primary-soft: rgba(51, 112, 255, 0.1);
+            --primary-glow: rgba(51, 112, 255, 0.2);
+            --accent: #722ed1;
+            --success: #00b42a;
+            --warning: #ff7d00;
+            --danger: #f53f3f;
+            --purple: #722ed1;
+
+            /* 文字（深色文字） */
+            --text-primary: #1f2329;
+            --text-secondary: #4e5969;
+            --text-muted: #86909c;
+            --text-faint: #86909c;
+
+            /* 边框（浅色边框） */
+            --border: rgba(208, 211, 214, 0.9);
+            --border-soft: rgba(240, 241, 242, 0.9);
+
+            /* 间距（8px比例尺） */
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-6: 24px;
+            --space-8: 32px;
+            --space-12: 48px;
+
+            /* 圆角 */
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+
+            /* 动效 */
+            --ease: cubic-bezier(0.4, 0, 0.2, 1);
+            --dur-fast: 150ms;
+            --dur-base: 250ms;
+
+            /* 阴影 */
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.35);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--surface-3);
+            min-height: 100vh;
+            color: var(--text-secondary);
+            display: flex;
+            line-height: 1.6;
+            position: relative;
+            overflow-x: hidden;
+        }
+        /* 背景彩色光晕（玻璃拟态氛围） */
+        body::before {
+            content: '';
+            position: fixed;
+            width: 420px;
+            height: 420px;
+            border-radius: 50%;
+            background: rgba(56, 189, 248, 0.18);
+            filter: blur(90px);
+            top: -120px;
+            right: -100px;
+            z-index: 0;
+            pointer-events: none;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            width: 380px;
+            height: 380px;
+            border-radius: 50%;
+            background: rgba(168, 85, 247, 0.16);
+            filter: blur(90px);
+            bottom: -100px;
+            left: -80px;
+            z-index: 0;
+            pointer-events: none;
+        }
+        /* 内容层级高于光晕 */
+        .sidebar, .content { position: relative; z-index: 1; }
+
+        /* ========== 侧边栏（玻璃拟态） ========== */
+        .sidebar {
+            width: 210px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: var(--space-4) 0 var(--space-6);
+            border-right: 1px solid rgba(208, 211, 214, 0.9);
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .sidebar-logo {
+            padding: var(--space-2) var(--space-4) var(--space-4);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: var(--space-2);
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+        .sidebar-logo .logo-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+        .sidebar-logo .logo-text {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
+        }
+        .sidebar-logo .logo-sub {
+            font-size: 0.7rem;
+            color: var(--text-faint);
+            margin-top: 2px;
+        }
+        .nav-group {
+            padding: var(--space-3) var(--space-4) var(--space-1);
+            font-size: 0.7rem;
+            color: var(--text-faint);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        .nav-item {
+            padding: 12px var(--space-4);
+            cursor: pointer;
+            transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            border-left: 3px solid transparent;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            margin: 1px 0;
+            min-height: 44px; /* 触控目标 */
+        }
+        .nav-item:hover { background: var(--surface-hover); color: var(--text-secondary); }
+        .nav-item:active { background: var(--surface-active); }
+        .nav-item.active {
+            background: linear-gradient(90deg, var(--primary-soft), transparent);
+            border-left-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .nav-item .nav-icon { font-size: 1.05rem; width: 22px; text-align: center; }
+
+        /* ========== 内容区 ========== */
+        .content { flex: 1; padding: var(--space-6); overflow-x: auto; }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn var(--dur-base) var(--ease); }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 { font-size: 1.4rem; color: var(--text-primary); margin-bottom: var(--space-1); font-weight: 700; line-height: 1.2; }
+        .page-sub { color: var(--text-faint); font-size: 0.8rem; margin-bottom: var(--space-4); }
+        h2 {
+            font-size: 1rem; color: var(--text-muted); margin: var(--space-6) 0 var(--space-3);
+            padding-bottom: var(--space-2); border-bottom: 1px solid var(--border-soft);
+            font-weight: 600;
+        }
+
+        /* ========== 统计卡片（彩色渐变+玻璃拟态） ========== */
+        .stat-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-3);
+            margin-bottom: var(--space-6);
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+        .stat-card:active { transform: translateY(-1px) scale(0.99); }
+        .stat-card .stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.7); margin-bottom: var(--space-2); }
+        .stat-card .stat-value { font-size: 1.55rem; font-weight: 700; color: #ffffff; font-variant-numeric: tabular-nums; }
+        .stat-card .stat-icon { position: absolute; right: var(--space-3); top: var(--space-3); font-size: 1.4rem; opacity: 0.5; }
+        /* 彩色渐变变体 */
+        .stat-card.green { background: linear-gradient(135deg, rgba(5,150,105,0.5), rgba(16,185,129,0.25)); border-color: rgba(16,185,129,0.3); }
+        .stat-card.blue { background: linear-gradient(135deg, rgba(37,99,235,0.5), rgba(56,189,248,0.25)); border-color: rgba(56,189,248,0.3); }
+        .stat-card.purple { background: linear-gradient(135deg, rgba(124,58,237,0.5), rgba(167,139,250,0.25)); border-color: rgba(167,139,250,0.3); }
+        .stat-card.orange { background: linear-gradient(135deg, rgba(217,119,6,0.5), rgba(251,191,36,0.25)); border-color: rgba(251,191,36,0.3); }
+        .stat-card.green .stat-value, .stat-card.blue .stat-value,
+        .stat-card.purple .stat-value, .stat-card.orange .stat-value { color: #ffffff; text-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+
+        /* ========== 卡片容器（玻璃拟态） ========== */
+        .card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
+            transition: border-color var(--dur-fast) var(--ease);
+        }
+        .card:hover { border-color: rgba(255, 255, 255, 0.15); }
+
+        /* ========== 表格 ========== */
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        thead th {
+            background: var(--surface-0);
+            color: var(--primary);
+            padding: 11px var(--space-2);
+            text-align: center;
+            font-weight: 600;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border);
+        }
+        thead th:first-child { border-radius: var(--radius-md) 0 0 0; }
+        thead th:last-child { border-radius: 0 var(--radius-md) 0 0; }
+        tbody td {
+            padding: var(--space-2);
+            text-align: center;
+            border-bottom: 1px solid rgba(30, 41, 59, 0.8);
+        }
+        tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.6); }
+        tbody tr { transition: background var(--dur-fast) var(--ease); }
+        tbody tr:hover { background: var(--surface-hover); }
+        tbody tr:last-child td { border-bottom: none; }
+        .name-cell { text-align: left; font-weight: 600; white-space: nowrap; }
+        .total-row { background: var(--primary-soft) !important; font-weight: 700; }
+        .total-row td { border-top: 2px solid var(--primary); color: var(--primary); }
+        .number { font-variant-numeric: tabular-nums; }
+        .money { color: var(--success); }
+        .refund { color: var(--danger); }
+
+        /* ========== 按钮（完整状态） ========== */
+        .btn {
+            padding: 10px var(--space-4);
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all var(--dur-fast) var(--ease);
+            min-height: 40px;
+            font-family: inherit;
+        }
+        .btn:hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-1px); }
+        .btn:active { transform: scale(0.97); background: rgba(255, 255, 255, 0.15); }
+        .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+            color: #f2f3f5;
+            border-color: transparent;
+            font-weight: 600;
+        }
+        .btn-primary:hover { box-shadow: 0 4px 12px var(--primary-glow); background: linear-gradient(135deg, var(--primary), var(--primary-strong)); }
+        .btn-primary:active { box-shadow: 0 2px 6px var(--primary-glow); }
+
+        .update-time { color: var(--text-faint); font-size: 0.8rem; margin-bottom: var(--space-3); }
+        .loading { text-align: center; padding: var(--space-6); color: var(--text-faint); font-size: 0.85rem; }
+        /* 包住对比汇总卡片（复用stat-card风格）*/
+        .board-card { background: #ffffff; border: 1px solid #334155; border-radius: 12px; padding: 14px; text-align: center; }
+        .board-card-label { font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
+        .board-card-value { font-size: 1.4rem; font-weight: 700; }
+
+        /* 统一控件样式（select/button，替代内联重复样式）*/
+        .ctrl { padding: 8px 12px; border-radius: 6px; border: 1px solid #334155; background: #ffffff; color: #e2e8f0; font-size: 0.85rem; }
+        .ctrl-mini { padding: 6px 10px; border-radius: 6px; border: 1px solid #334155; background: #ffffff; color: #e2e8f0; font-size: 0.85rem; }
+        .ctrl-btn { background: #ffffff; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
+
+        /* ========== 输入控件 ========== */
+        select, input[type="date"], input[type="text"], input[type="number"] {
+            padding: 9px var(--space-3);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            transition: all var(--dur-fast) var(--ease);
+            font-family: inherit;
+        }
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-soft);
+        }
+        select:hover, input:hover { border-color: var(--text-faint); }
+
+        /* 焦点环（键盘导航） */
+        :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+        /* 动效安全（用户偏好减少动画） */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* ========== 移动端 ========== */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: static;
+                flex-direction: row;
+                flex-wrap: wrap;
+                padding: var(--space-2) var(--space-1);
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                overflow-x: auto;
+            }
+            .sidebar-logo { display: none; }
+            .nav-group { display: none; }
+            .nav-item {
+                padding: 10px var(--space-3);
+                border-left: none;
+                border-bottom: 2px solid transparent;
+                border-radius: var(--radius-md);
+                white-space: nowrap;
+                margin: 2px;
+                min-height: 44px;
+            }
+            .nav-item.active { border-bottom-color: var(--primary); border-left-color: transparent; }
+            .content { padding: var(--space-3); }
+            table { font-size: 0.75rem; }
+            thead th, tbody td { padding: 8px 4px; }
+            .stat-cards { grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+            .stat-card { padding: var(--space-3); }
+            .stat-card .stat-value { font-size: 1.2rem; }
+            .btn { min-height: 44px; }
+        }
+
+        /* ========== 体验优化层 ========== */
+        .content { min-width: 0; max-width: 1800px; }
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between; gap: 16px;
+            min-height: 58px; margin: -8px 0 22px; padding: 12px 16px;
+            background: rgba(255,255,255,.88); border: 1px solid var(--border-soft);
+            border-radius: var(--radius-lg); box-shadow: 0 4px 16px rgba(31,35,41,.05);
+        }
+        .topbar-left { display:flex; align-items:center; gap:10px; min-width:0; }
+        .topbar-mark { width:30px; height:30px; display:grid; place-items:center; border-radius:9px; background:var(--primary-soft); color:var(--primary); font-size:15px; }
+        .topbar-title { color:var(--text-primary); font-weight:700; font-size:.95rem; white-space:nowrap; }
+        .topbar-context { color:var(--text-muted); font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .topbar-right { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+        .service-pill { display:inline-flex; align-items:center; gap:7px; padding:6px 10px; border-radius:999px; background:#ecfdf3; color:#16834d; font-size:.75rem; font-weight:600; }
+        .service-dot { width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.14); }
+        .topbar-time { color:var(--text-muted); font-size:.74rem; }
+        .sidebar-footer { margin-top:auto; padding:16px; color:var(--text-faint); font-size:.72rem; border-top:1px solid var(--border-soft); }
+        .sidebar-footer strong { display:block; color:var(--text-secondary); font-size:.76rem; margin-bottom:3px; }
+        .card { box-shadow: 0 3px 14px rgba(31,35,41,.045); }
+        .card h2 { color:var(--text-primary); margin-top:4px; }
+        .stat-card { box-shadow: 0 5px 16px rgba(31,35,41,.08); }
+        .stat-card .stat-label { color:rgba(255,255,255,.82); }
+        tbody td { border-bottom-color: var(--border-soft); color:var(--text-secondary); }
+        tbody tr:nth-child(even) { background: rgba(248,250,252,.76); }
+        tbody tr:hover { background: #eef4ff; }
+        .board-card { background:var(--surface-0); border:1px solid var(--border-soft); box-shadow:0 3px 12px rgba(31,35,41,.04); }
+        .board-card-label { color:var(--text-muted); }
+        .ctrl, .ctrl-mini, .ctrl-btn { border:1px solid var(--border); background:var(--surface-0); color:var(--text-secondary); }
+        .ctrl-btn:hover { color:var(--primary); border-color:var(--primary); background:var(--primary-soft); }
+        .toolbar, .filter-bar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+        .btn-primary { box-shadow:0 3px 9px var(--primary-glow); }
+        .btn-secondary { background:var(--surface-0); color:var(--text-secondary); border-color:var(--border); }
+        .btn-secondary:hover { color:var(--primary); border-color:var(--primary); background:var(--primary-soft); }
+        .loading { min-height:76px; display:grid; place-items:center; }
+        @media (max-width: 768px) {
+            .topbar { margin:-4px 0 14px; padding:10px 12px; }
+            .topbar-context, .topbar-time { display:none; }
+            .service-pill { padding:5px 8px; }
+            .content { width:100%; }
+            .sidebar { position:sticky; top:0; z-index:10; }
+        }    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon">🏠</div>
+            <div>
+                <div class="logo-text">工作台</div>
+                <div class="logo-sub">上岸公寓管理</div>
+            </div>
+        </div>
+        <div class="nav-group">📊 数据</div>
+        <div class="nav-item active" onclick="showPage('summary', event)"><span class="nav-icon">📊</span>数据汇总</div>
+        <div class="nav-item" onclick="showPage('info', event)"><span class="nav-icon">🏢</span>基本信息</div>
+        <div class="nav-group">📋 管理</div>
+        <div class="nav-item" onclick="showPage('weekly', event)"><span class="nav-icon">📈</span>周效比</div>
+        <div class="nav-item" onclick="showPage('staff', event)"><span class="nav-icon">👥</span>花名册</div>
+        <div class="nav-item" onclick="showPage('residents', event)"><span class="nav-icon">🏠</span>在住名单</div>
+        <div class="nav-item" onclick="showPage('rooms', event)"><span class="nav-icon">🚪</span>楼栋房间</div>
+        <div class="nav-group">💰 报表</div>
+        <div class="nav-item" onclick="showPage('income', event)"><span class="nav-icon">💵</span>收入报表</div>
+        <div class="nav-item" onclick="showPage('finance', event)"><span class="nav-icon">💹</span>财务数据</div>
+        <div class="nav-item" onclick="showPage('payroll', event)"><span class="nav-icon">💰</span>工资表</div>
+        <div class="nav-item" onclick="showPage('linen', event)"><span class="nav-icon">🧺</span>布草管理</div>
+        <div class="nav-item" onclick="showPage('board', event)"><span class="nav-icon">🛏️</span>包住对比</div>
+        <div class="sidebar-footer"><strong>工作台 v2.0</strong>数据每 5 分钟自动缓存</div>
+    </div>
+
+    <div class="content">
+        <div class="topbar">
+            <div class="topbar-left">
+                <div class="topbar-mark">⌂</div>
+                <div>
+                    <div class="topbar-title" id="topbarTitle">数据汇总</div>
+                    <div class="topbar-context">上岸公寓运营工作台</div>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <span class="service-pill"><span class="service-dot"></span>本地服务正常</span>
+                <span class="topbar-time" id="topbarTime">-</span>
+            </div>
+        </div>
+        <div id="summary-page" class="page active">
+            <h1>📊 数据汇总</h1>
+            <div class="page-sub">本月各校区收入与运营总览</div>
+            <div class="update-time">最后更新：<span id="lastUpdate">-</span></div>
+            <button class="btn btn-primary" onclick="clearCampusCache();fetchAllData()" style="margin-bottom:16px">🔄 刷新数据</button>
+
+            <div id="statCards" class="stat-cards" style="display:none">
+                <div class="stat-card green">
+                    <div class="stat-label">本月总收入</div>
+                    <div class="stat-value" id="statTotalIncome">-</div>
+                    <div class="stat-icon">💰</div>
+                </div>
+                <div class="stat-card blue">
+                    <div class="stat-label">收入笔数</div>
+                    <div class="stat-value" id="statTotalCount">-</div>
+                    <div class="stat-icon">📝</div>
+                </div>
+                <div class="stat-card purple">
+                    <div class="stat-label">校区数量</div>
+                    <div class="stat-value" id="statCampusCount">-</div>
+                    <div class="stat-icon">🏢</div>
+                </div>
+                <div class="stat-card orange">
+                    <div class="stat-label">人均收入</div>
+                    <div class="stat-value" id="statPerCapita">-</div>
+                    <div class="stat-icon">📈</div>
+                </div>
+            </div>
+
+            <div id="dataLoading" class="loading">加载中...</div>
+            <div id="dataContent" style="display:none">
+                <div class="card">
+                    <h2>💰 本月收入汇总（收入流水）</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>校区</th>
+                                <th>收入笔数</th>
+                                <th>收入金额</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incomeBody"></tbody>
+                    </table>
+                </div>
+
+
+
+
+            </div>
+        </div>
+
+        <!-- 基本信息页 -->
+        <div id="info-page" class="page">
+            <h1>📊 基本信息</h1>
+            <button class="btn btn-primary" onclick="clearCampusCache();fetchInfo()" style="margin-bottom:16px">🔄 刷新数据</button>
+
+                <div class="card">
+                    <h2>📅 校区启用时间</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>校区</th>
+                            <th>启用时间</th>
+                            <th>运营时长</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="name-cell">上岸公寓B座</td><td>2022年4月</td><td id="duration_10144">-</td></tr>
+                        <tr><td class="name-cell">上岸公寓C座</td><td>2023年5月</td><td id="duration_10137">-</td></tr>
+                        <tr><td class="name-cell">嵘泰校区</td><td>2023年11月</td><td id="duration_10138">-</td></tr>
+                        <tr><td class="name-cell">塔利北校区</td><td>2024年10月</td><td id="duration_10139">-</td></tr>
+                        <tr><td class="name-cell">塔利南校区</td><td>2024年12月</td><td id="duration_10140">-</td></tr>
+                        <tr><td class="name-cell">小新公寓</td><td>2025年2月</td><td id="duration_10145">-</td></tr>
+                        <tr><td class="name-cell">景然力沃校区</td><td>2025年2月/4月</td><td id="duration_10148">-</td></tr>
+                        <tr><td class="name-cell">上岸公寓D座</td><td>2026年2月</td><td id="duration_10143">-</td></tr>
+                    </tbody>
+                </table>
+                </div>
+            <div id="infoLoading" class="loading">加载中...</div>
+            <div id="infoContent" style="display:none">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>校区ID</th>
+                            <th>校区名称</th>
+                            <th>成立时间</th>
+                            <th>在用房间</th>
+                            <th>在用床位</th>
+                            <th>昨日在住</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="infoBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 周效比页 -->
+        <div id="weekly-page" class="page">
+            <h1>📋 各校区每周人效比</h1>
+            <div class="update-time">数据时间：<span id="weeklyDate">-</span></div>
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+                <input type="date" id="weeklyStart" class="ctrl" onchange="fetchWeekly()">
+                <span style="color:#94a3b8">至</span>
+                <input type="date" id="weeklyEnd" class="ctrl" onchange="fetchWeekly()">
+                <button class="btn btn-primary" onclick="clearCampusCache();fetchWeekly()">🔄 刷新数据</button>
+            </div>
+            <div id="weeklyValidate" style="display:none;margin-bottom:16px"></div>
+            <div id="weeklyLoading" class="loading">加载中...</div>
+            <div id="weeklyContent" style="display:none">
+                <h2>📋 基础数据 <span style="font-size:0.7rem;color:#94a3b8;font-weight:normal">（保洁人数可直接修改，自动保存）</span></h2>
+                <table>
+                    <thead>
+                        <tr><th>校区</th>
+                            <th>总在住</th><th>教师</th><th>包住</th><th>自费</th><th>收入(元)</th><th>班主任</th><th>保洁</th><th>保安</th><th>人效比</th></tr>
+                    </thead>
+                    <tbody id="weeklyBody"></tbody>
+                </table>
+
+                <h2 style="margin-top:24px">🛏️ 床位占比（<span id="weeklyBedsTitle">7天累计</span>）</h2>
+                <div id="weeklyBedsLoading" class="loading">加载中...</div>
+                <table id="weeklyBedsTable" style="display:none">
+                    <thead>
+                        <tr>
+                            <th>校区</th>
+                            <th>总床位</th>
+                            <th>已用床位</th>
+                            <th>空余床位</th>
+                            <th>占比%</th>
+                        </tr>
+                    </thead>
+                    <tbody id="weeklyBedsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 花名册页 -->
+        <div id="staff-page" class="page">
+            <h1>👥 花名册</h1>
+            <div class="page-sub">各校区生活班主任名单（22人）</div>
+            <div id="staffLoading" class="loading">加载中...</div>
+            <div id="staffContent" style="display:none">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>校区</th>
+                            <th>公司</th>
+                            <th>人数</th>
+                            <th>生活班主任</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staffBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 在住名单页 -->
+        <div id="residents-page" class="page">
+            <h1>🏠 在住名单</h1>
+
+            <!-- 子模块：本年每月各校区在住人次（置顶） -->
+            <div class="card" style="margin-bottom:16px">
+                <h2>📅 本年每月各校区在住人次 <button class="btn" style="margin-left:12px;padding:6px 12px;font-size:0.8rem" onclick="fetchMonthlyOccupancy()">🔄 刷新</button></h2>
+                <div id="occLoading" class="loading" style="display:none">加载中...</div>
+                <div id="occContent" style="overflow-x:auto">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>校区</th>
+                                <th>1月</th>
+                                <th>2月</th>
+                                <th>3月</th>
+                                <th>4月</th>
+                                <th>5月</th>
+                                <th>6月</th>
+                                <th>7月</th>
+                                <th>8月</th>
+                                <th>9月</th>
+                                <th>10月</th>
+                                <th>11月</th>
+                                <th>12月</th>
+                                <th>合计</th>
+                            </tr>
+                        </thead>
+                        <tbody id="occBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 子模块：按日明细（选月份看每天各校区在住人数） -->
+            <div class="card" style="margin-bottom:16px">
+                <h2>🗓️ 每日在住人数明细
+                    <select id="occMonthSelect" onchange="fetchDailyOccupancy()" class="ctrl-mini" style="margin-left:12px">
+                        <option value="2026-01">2026年1月</option>
+                        <option value="2026-02">2026年2月</option>
+                        <option value="2026-03">2026年3月</option>
+                        <option value="2026-04">2026年4月</option>
+                        <option value="2026-05">2026年5月</option>
+                        <option value="2026-06">2026年6月</option>
+                        <option value="2026-07">2026年7月</option>
+                        <option value="2026-08" selected>2026年8月</option>
+                    </select>
+                </h2>
+                <div id="dailyLoading" class="loading" style="display:none">加载中...</div>
+                <div id="dailyContent" style="overflow-x:auto">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>B座</th>
+                                <th>C座</th>
+                                <th>D座</th>
+                                <th>小新</th>
+                                <th>力沃</th>
+                                <th>嵘泰</th>
+                                <th>塔利北</th>
+                                <th>塔利南</th>
+                                 <th>城际酒店</th>
+                                <th>合计</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dailyBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="update-time">最后更新：<span id="resLastUpdate">-</span></div>
+            <div id="resSnapSummary"></div>
+            <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+                <select id="resCampus" onchange="filterResidents()" class="ctrl">
+                    <option value="">全部校区</option>
+                </select>
+                <input id="resSearch" type="text" placeholder="搜索姓名/房号/手机号..." oninput="filterResidents()" style="padding:8px 12px;border-radius:6px;border:1px solid #334155;background:#ffffff;color:#e2e8f0;font-size:0.85rem;width:220px">
+                <button class="btn btn-primary" onclick="fetchResidents()">🔍 查询在住</button>
+                <span id="resCount" style="color:#94a3b8;font-size:0.85rem"></span>
+            </div>
+            <div id="resLoading" class="loading">点击"查询在住"加载当前在住名单</div>
+            <div id="resContent" style="display:none;overflow-x:auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>校区</th>
+                            <th>姓名</th>
+                            <th>性别</th>
+                            <th>楼栋</th>
+                            <th>楼层</th>
+                            <th>房号</th>
+                            <th>手机号</th>
+                            <th>财务标记</th>
+                            <th>入住时间</th>
+                            <th>预离时间</th>
+                            <th>天数</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 楼栋房间页 -->
+        <div id="rooms-page" class="page">
+            <h1>🏢 楼栋房间</h1>
+            <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+                <select id="roomCampus" onchange="fetchRooms()" class="ctrl">
+                    <option value="">全部校区</option>
+                </select>
+                <button class="btn btn-primary" onclick="fetchRooms()">🔄 刷新</button>
+            </div>
+            <div id="roomLoading" class="loading">请选择校区</div>
+            <div id="roomContent" style="display:none">
+                <div style="display:flex;gap:16px;flex-wrap:wrap">
+                    <!-- 左侧：楼层树 -->
+                    <div id="roomFloorTree" style="flex:0 0 180px;background:rgba(255,255,255,0.9);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px;max-height:600px;overflow-y:auto"></div>
+                    <!-- 右侧：房间表 -->
+                    <div style="flex:1;min-width:280px;overflow-x:auto">
+                        <div id="roomFloorSummary" style="background:rgba(255,255,255,0.9);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:12px;font-size:0.85rem;color:#94a3b8;display:flex;gap:12px;flex-wrap:wrap;align-items:center">请选择楼层查看房间</div>
+                        <div id="roomTableWrap" style="background:rgba(255,255,255,0.9);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>房间号</th>
+                                        <th>床位数</th>
+                                        <th>窗户</th>
+                                        <th>性别</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="roomBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 收入报表页 -->
+        <div id="income-page" class="page">
+            <h1>💰 收入报表</h1>
+            <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+                <select id="incomeCampus" onchange="fetchIncome()" class="ctrl">
+                    <option value="">全部校区</option>
+                </select>
+                <input id="incomeStart" type="date" value="" style="padding:8px;border-radius:6px;border:1px solid #334155;background:#ffffff;color:#e2e8f0;font-size:0.85rem">
+                <span style="color:#94a3b8">至</span>
+                <input id="incomeEnd" type="date" value="" style="padding:8px;border-radius:6px;border:1px solid #334155;background:#ffffff;color:#e2e8f0;font-size:0.85rem">
+                <button class="btn btn-primary" onclick="fetchIncome()">🔍 查询</button>
+            </div>
+            <div id="incomeSummary" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px"></div>
+            <div id="incomeLoading" class="loading">选择校区和日期后查询</div>
+            <div id="incomeContent" style="display:none">
+                <table style="min-width:800px">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>校区</th>
+                            <th>房间号</th>
+                            <th>房号</th>
+                            <th>姓名</th>
+                            <th>营业项目</th>
+                            <th>业务详情</th>
+                            <th>金额</th>
+                            <th>房价规则</th>
+                            <th>财务标记</th>
+                            <th>订单号</th>
+                            <th>消费时间</th>
+                            <th>操作人</th>
+                        </tr>
+                    </thead>
+                    <tbody id="incomeReportBody"></tbody>
+                </table>
+                <div id="incomePagination" style="display:flex;justify-content:center;gap:8px;margin-top:12px"></div>
+            </div>
+        </div>
+
+        <div id="finance-page" class="page">
+            <h1>💹 财务数据</h1>
+            <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+                <select id="financeCampus" class="ctrl">
+                    <option value="">全部校区</option>
+                </select>
+                <select id="financeType" class="ctrl">
+                    <option value="expenses">费用支出</option>
+                    <option value="income">收入</option>
+                    <option value="assets">资产</option>
+                </select>
+                <input id="financeStart" type="date" style="padding:8px;border-radius:6px;border:1px solid #334155;background:#ffffff;color:#e2e8f0;font-size:0.85rem">
+                <span style="color:#94a3b8">至</span>
+                <input id="financeEnd" type="date" style="padding:8px;border-radius:6px;border:1px solid #334155;background:#ffffff;color:#e2e8f0;font-size:0.85rem">
+                <button class="btn btn-primary" onclick="fetchFinance()">🔍 查询</button>
+            </div>
+            <div id="financeSummary" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px"></div>
+            <div id="financeLoading" class="loading">选择条件后查询</div>
+            <div id="financeContent" style="display:none">
+                <div style="overflow-x:auto">
+                    <table>
+                        <thead>
+                            <tr id="financeHead"></tr>
+                        </thead>
+                        <tbody id="financeBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 工资表页 -->
+        <div id="payroll-page" class="page">
+            <h1>💰 工资表</h1>
+            <div class="page-sub">导入考勤表自动核算（底薪2000 + 出勤天数×日薪）</div>
+            <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+                <input type="file" id="payrollFile" accept=".xlsx,.xls" style="display:none">
+                <button class="btn btn-primary" onclick="document.getElementById('payrollFile').click()">📥 导入考勤表</button>
+                <button class="btn" onclick="exportPayroll('hotel')">📤 导出酒店发</button>
+                <button class="btn" onclick="exportPayroll('new')">📤 导出新途径发</button>
+                <button class="btn" onclick="exportPayroll('all')">📤 导出全部</button>
+                <span id="payrollFileName" style="color:#94a3b8;font-size:0.8rem"></span>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:16px;background:rgba(255,255,255,0.9);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:12px 16px">
+                <span style="color:#94a3b8;font-size:0.85rem">绩效（按公司统一填，主管除外）:</span>
+                <label style="font-size:0.85rem;color:#e2e8f0">酒店公司 <input type="number" id="perfHotel" value="420" style="width:70px;padding:6px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.85rem;text-align:center"></label>
+                <label style="font-size:0.85rem;color:#e2e8f0">新途径公司 <input type="number" id="perfNew" value="420" style="width:70px;padding:6px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.85rem;text-align:center"></label>
+            </div>
+            <div id="payrollSummary" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px"></div>
+            <div id="payrollLoading" class="loading">导入考勤表后自动生成工资表</div>
+            <div id="payrollContent" style="display:none">
+                <div class="card" style="margin-bottom:24px">
+                    <h2>🏨 酒店发</h2>
+                    <div id="payrollHotelSec1" style="overflow-x:auto"></div>
+                    <div id="payrollHotelSec2" style="overflow-x:auto;margin-top:16px"></div>
+                    <div id="payrollHotelSec3" style="overflow-x:auto;margin-top:16px"></div>
+                </div>
+                <div class="card">
+                    <h2>🏢 新途径发</h2>
+                    <div id="payrollNewSec1" style="overflow-x:auto"></div>
+                    <div id="payrollNewSec2" style="overflow-x:auto;margin-top:16px"></div>
+                    <div id="payrollNewSec3" style="overflow-x:auto;margin-top:16px"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 布草管理页 -->
+        <div id="linen-page" class="page">
+            <h1>🧺 布草管理</h1>
+            <div class="page-sub">床笠/枕套/被套/护垫/床帘/被芯/枕芯 · 运走/运回/破损/返工</div>
+
+            <!-- 录入区 -->
+            <div class="card">
+                <h2>📥 批量录入 <button class="btn" style="margin-left:12px;padding:6px 12px;font-size:0.8rem" onclick="linenInitInventory()">⚙️ 初始库存</button></h2>
+                <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+                    <span style="color:#94a3b8;font-size:0.85rem">日期</span>
+                    <input id="linenDate" type="date" style="padding:8px;border-radius:6px;border:1px solid #334155;background:#ffffff;color:#e2e8f0;font-size:0.85rem">
+                    <span style="color:#94a3b8;font-size:0.85rem">校区</span>
+                    <select id="linenCampus" class="ctrl">
+                        <option value="上岸公寓B座">B座</option>
+                        <option value="上岸公寓C座">C座</option>
+                        <option value="上岸公寓D座">D座</option>
+                        <option value="小新公寓">小新</option>
+                        <option value="景然力沃校区">力沃</option>
+                        <option value="嵘泰校区">嵘泰</option>
+                        <option value="塔利北校区">塔利北</option>
+                        <option value="塔利南校区">塔利南</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="linenAdd()">💾 保存本校区</button>
+                    <span id="linenMsg" style="color:#94a3b8;font-size:0.8rem"></span>
+                </div>
+                <div style="overflow-x:auto">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>物品</th>
+                                <th>运走</th>
+                                <th>运回</th>
+                                <th>破损</th>
+                                <th>返工</th>
+                                <th>当前库存</th>
+                            </tr>
+                        </thead>
+                        <tbody id="linenInputBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 库存汇总 -->
+            <div class="card">
+                <h2>📊 库存汇总 <button class="btn" style="margin-left:12px;padding:6px 12px;font-size:0.8rem" onclick="linenLoadInventory()">🔄 刷新</button></h2>
+                <div id="linenInvContent" style="overflow-x:auto">
+                    <table>
+                        <thead>
+                            <tr><th>校区</th><th>物品</th><th>初始</th><th>运回</th><th>运走</th><th>破损</th><th>库存</th></tr>
+                        </thead>
+                        <tbody id="linenInvBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 月度对账 -->
+            <div class="card">
+                <h2>📅 月度对账
+                    <input id="linenMonth" type="month" class="ctrl-mini" style="margin-left:12px">
+                    <button class="btn" style="margin-left:8px;padding:6px 12px;font-size:0.8rem" onclick="linenSummary()">🔍 查询</button>
+                </h2>
+                <div id="linenSumContent" style="overflow-x:auto">
+                    <table>
+                        <thead>
+                            <tr><th>校区</th><th>物品</th><th>运走</th><th>运回</th><th>破损</th><th>返工</th><th>破损赔偿</th></tr>
+                        </thead>
+                        <tbody id="linenSumBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 台账 -->
+            <div class="card">
+                <h2>📋 台账记录 <button class="btn" style="margin-left:12px;padding:6px 12px;font-size:0.8rem" onclick="linenLoadRecords()">🔄 刷新</button></h2>
+                <div id="linenRecContent" style="overflow-x:auto">
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>校区</th><th>物品</th><th>操作</th><th>数量</th><th>备注</th></tr>
+                        </thead>
+                        <tbody id="linenRecBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- 包住对比页 -->
+        <div id="board-page" class="page">
+            <h1>🛏️ 包住信息对比</h1>
+            <div class="page-sub">AMS学生包住统计 vs 对方表格，按身份证匹配对比累计天数</div>
+
+            <div id="boardSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px"></div>
+
+            <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+                <button class="btn btn-primary" onclick="fetchBoard()">🔄 刷新对比</button>
+                <button class="btn" onclick="exportBoard()" class="ctrl-btn">📤 导出Excel</button>
+                <label class="btn" style="cursor:pointer;background:#ffffff;border:1px solid #334155;color:#e2e8f0;padding:8px 12px;border-radius:6px;font-size:0.85rem">
+                    📥 导入对方Excel
+                    <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importBoardExcel(this)">
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;color:#e2e8f0;font-size:0.85rem;cursor:pointer">
+                    <input type="checkbox" id="boardExcludeZt" onchange="fetchBoard()" style="width:16px;height:16px">
+                    排除直通班
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;color:#e2e8f0;font-size:0.85rem;cursor:pointer">
+                    <input type="checkbox" id="boardExcludeNoAms" onchange="fetchBoard()" style="width:16px;height:16px">
+                    对方有AMS为0
+                </label>
+                <select id="boardStartMonth" onchange="fetchBoard()" class="ctrl">
+                    <option value="">起始月</option>
+                    <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+                    <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+                    <option value="07">7月</option><option value="08" selected>8月</option><option value="09">9月</option>
+                    <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                </select>
+                <span style="color:#94a3b8">~</span>
+                <select id="boardEndMonth" onchange="fetchBoard()" class="ctrl">
+                    <option value="">结束月</option>
+                    <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+                    <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+                    <option value="07">7月</option><option value="08" selected>8月</option><option value="09">9月</option>
+                    <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                </select>
+                <select id="boardFilter" onchange="fetchBoard()" class="ctrl">
+                    <option value="all">全部</option>
+                    <option value="diff">不一致</option>
+                    <option value="amt_diff">金额差异(对方多)</option>
+                    <option value="only_ams">仅AMS有</option>
+                    <option value="only_other">仅对方有</option>
+                    <option value="both">两边都有</option>
+                    <option value="text_days">文字天数</option>
+                </select>
+                <span id="boardCount" style="color:#94a3b8;font-size:0.85rem"></span>
+            </div>
+
+            <div id="boardLoading" class="loading">加载中...</div>
+            <div id="boardContent" style="display:none;overflow-x:auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>序号</th><th>姓名</th><th>校区</th><th>月份</th><th>AMS天数</th><th>对方天数</th>
+                            <th>天数差</th><th>AMS金额</th><th>对方金额</th><th>金额差</th><th>状态</th><th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="boardBody"></tbody>
+                </table>
+                <div id="boardPagination" style="margin-top:12px;display:flex;gap:12px;align-items:center"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const HOTELS = [
+            {id:"10144", name:"上岸公寓B座", start:"2022年4月"},
+            {id:"10137", name:"上岸公寓C座", start:"2023年5月"},
+            {id:"10143", name:"上岸公寓D座", start:"2026年2月"},
+            {id:"10145", name:"小新公寓", start:"2025年2月"},
+            {id:"10148", name:"景然力沃校区", start:"2025年2月"},
+            {id:"10138", name:"嵘泰校区", start:"2023年11月"},
+            {id:"10139", name:"塔利北校区", start:"2024年10月"},
+            {id:"10140", name:"塔利南校区", start:"2024年12月"},
+            {id:"10163", name:"城际酒店", start:"2026年7月15日"},
+        ];
+
+        // ===== 校区楼层归属过滤（2026-08-03 核对系统后确认，6校区全部对齐）=====
+        // 系统"楼栋房间"统计口径：逐楼层（本校区父节点下的楼层）累加，每层只算已发布(roomIsPublish=0)房间
+        // 某些校区building接口混入了其他校区的楼层（C栋含小新2-4层、D座含力沃楼层），按楼层名排除
+        var CAMPUS_EXCLUDE_FLOOR_NAMES = {
+            '10137': ['2层','3层','4层'],          // C栋排除小新2-4层
+            '10143': ['2层','3层','4层','7层','景然'], // D座排除力沃楼层
+        };
+
+        // 过滤不属于本校区的房间（需先有楼层名映射bMap）
+        function filterCampusRooms(hotelId, rooms, bMap) {
+            var exclude = CAMPUS_EXCLUDE_FLOOR_NAMES[hotelId];
+            if (!exclude || !exclude.length) return rooms;
+            return rooms.filter(function(r) {
+                var fn = (bMap && bMap[r.roomFloor]) || r.roomFloor || '';
+                return !exclude.some(function(k) { return fn.indexOf(k) >= 0; });
+            });
+        }
+
+        // ===== 全局校区数据缓存（2026-08-05 共用优化）=====
+        // 房间+building数据被 fetchInfo/fetchWeekly/fetchRooms 3个模块共用，
+        // 一次拉取后全局缓存，切模块不再重复拉API
+        var campusDataCache = null; // hotelId -> rooms数组 + bMap映射
+
+        // 获取某校区房间数据（带楼层过滤），带全局缓存
+        async function getCampusData(hotelId) {
+            if (campusDataCache && campusDataCache[hotelId]) {
+                return campusDataCache[hotelId];
+            }
+            const [buildRes, roomRes] = await Promise.all([
+                apiGet('/api/hotel/web/basics/building/list/' + hotelId),
+                apiGet('/api/hotel/web/basics/room/list/' + hotelId)
+            ]);
+            const buildings = (buildRes.data || []);
+            let rooms = (roomRes.data || []);
+            // 楼栋名称映射
+            const bMap = {};
+            buildings.forEach(b => bMap[b.buildCode] = b.buildName);
+            // 过滤其他校区楼层
+            rooms = filterCampusRooms(hotelId, rooms, bMap);
+            if (!campusDataCache) campusDataCache = {};
+            campusDataCache[hotelId] = { rooms: rooms, bMap: bMap };
+            return campusDataCache[hotelId];
+        }
+
+        // 清空校区数据缓存（刷新按钮用）
+        function clearCampusCache() {
+            campusDataCache = null;
+            clearApiCache();
+        }
+
+        // ===== 通用数据缓存（5分钟有效，减少重复拉API） =====
+        var _apiCache = {};
+        function apiGet(url, force) {
+            var now = Date.now();
+            var cached = _apiCache[url];
+            if (!force && cached && (now - cached.t) < 300000) {
+                return Promise.resolve(cached.data);
+            }
+            return fetch(url).then(function(r) { return r.json(); }).then(function(d) {
+                _apiCache[url] = { t: now, data: d };
+                return d;
+            });
+        }
+        function clearApiCache() {
+            _apiCache = {};
+        }
+
+        // ===== 通用加载提示 =====
+        function showLoadingError(loadingEl, msg) {
+            if (loadingEl) {
+                loadingEl.innerHTML = '<span style="color:#f87171">⚠️ ' + (msg || '加载失败，请检查网络或重新扫码登录') + '</span> <button class="btn" style="margin-left:8px" onclick="clearApiCache();location.reload()">🔄 重试</button>';
+                loadingEl.style.display = 'block';
+            }
+        }
+        function showEmptyTip(loadingEl, msg) {
+            if (loadingEl) {
+                loadingEl.innerHTML = '<span style="color:#94a3b8">📭 ' + (msg || '暂无数据') + '</span>';
+                loadingEl.style.display = 'block';
+            }
+        }
+
+        function updateTopbar(p) {
+            const title = document.getElementById('topbarTitle');
+            const time = document.getElementById('topbarTime');
+            if (title) title.textContent = getPageName(p);
+            if (time) time.textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+        }
+        function updateTopbarClock() {
+            const time = document.getElementById('topbarTime');
+            if (time && !time.textContent.trim()) time.textContent = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+        }
+        function showPage(p, ev) {
+            updateTopbar(p);
+            document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+            document.getElementById(p + '-page').classList.add('active');
+            if (ev && ev.currentTarget) {
+                ev.currentTarget.classList.add('active');
+            } else {
+                // 找不到event时按文本匹配
+                document.querySelectorAll('.nav-item').forEach(function(el) {
+                    if (el.textContent.indexOf(getPageName(p)) >= 0) el.classList.add('active');
+                });
+            }
+            if (p === 'summary') { fetchAllData(); calcDuration(); }
+            if (p === 'info') { fetchInfo(); calcDuration(); }
+            if (p === 'weekly') fetchWeekly();
+            if (p === 'staff') fetchStaff();
+            if (p === 'residents') { fetchMonthlyOccupancy(); fetchDailyOccupancy(); loadResidentsSnapshot(); }  // 默认加载在住人次+每日明细+当天快照，名单需手动查询
+            if (p === 'rooms') initRoomPage();
+            if (p === 'income') initIncomePage();
+            if (p === 'finance') initFinancePage();
+            if (p === 'payroll') initPayrollPage();
+            if (p === 'linen') initLinenPage();
+            if (p === 'board') fetchBoard();
+        }
+
+        function getPageName(p) {
+            var names = {summary:'数据汇总',info:'基本信息',weekly:'周效比',staff:'花名册',residents:'在住名单',rooms:'楼栋房间',income:'收入报表',finance:'财务数据',payroll:'工资表',linen:'布草管理',board:'包住对比'};
+            return names[p] || p;
+        }
+
+        let qrUuid = null;
+        let qrTimer = null;
+
+
+
+
+        // loadQR 已移除（函数未定义）
+
+        function calcDuration() {
+            const starts = {
+                '10144': '2022-04-01',
+                '10137': '2023-05-01',
+                '10138': '2023-11-01',
+                '10139': '2024-10-01',
+                '10140': '2024-12-01',
+                '10145': '2025-02-01',
+                '10148': '2025-02-01',
+                '10143': '2026-02-01'
+            };
+            const now = new Date();
+            for (const [id, startStr] of Object.entries(starts)) {
+                const start = new Date(startStr);
+                const months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+                const years = Math.floor(months / 12);
+                const remainMonths = months % 12;
+                const el = document.getElementById('duration_' + id);
+                if (el) {
+                    el.textContent = years > 0 ? years + '年' + remainMonths + '个月' : remainMonths + '个月';
+                }
+            }
+        }
+        
+        let fetching = false;  // 数据汇总加载锁（2026-08-12修复：之前未声明导致ReferenceError）
+
+        async function fetchAllData() {
+            if (fetching) return;
+            fetching = true;
+            const loading = document.getElementById('dataLoading');
+            const content = document.getElementById('dataContent');
+            loading.style.display = 'block';
+            content.style.display = 'none';
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString('zh-CN');
+
+            const now = new Date();
+            const sd = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
+            const ed = now.toISOString().split('T')[0];
+
+            const incomeBody = document.getElementById('incomeBody');
+            incomeBody.innerHTML = '';
+
+            let tIncome = 0, tIncomeN = 0;
+            for (const h of HOTELS) {
+                let incomeAmt = 0, incomeCnt = 0;
+
+                // 收入（本地SQLite统计，毫秒级）
+                try {
+                    const r = await apiGet('/api/income/summary?hotel_id=' + h.id + '&start=' + sd + '&end=' + ed);
+                    // 接口返回 code, income(顶层), cnt, total, data
+                    incomeAmt = r.income || (r.data && r.data.total) || 0;
+                    incomeCnt = r.cnt || r.total || 0;
+                } catch(e) {}
+
+                tIncome += incomeAmt; tIncomeN += incomeCnt;
+
+                incomeBody.innerHTML += '<tr><td class="name-cell">' + h.name + '</td><td class="number">' + incomeCnt.toLocaleString() + '</td><td class="number money">¥' + incomeAmt.toLocaleString() + '</td></tr>';
+            }
+
+            // 合计行
+            incomeBody.innerHTML += '<tr class="total-row"><td>合计</td><td class="number">' + tIncomeN.toLocaleString() + '</td><td class="number">¥' + tIncome.toLocaleString() + '</td></tr>';
+
+            // 统计卡片
+            var statCards = document.getElementById('statCards');
+            if (statCards) {
+                statCards.style.display = 'grid';
+                document.getElementById('statTotalIncome').textContent = '¥' + tIncome.toLocaleString();
+                document.getElementById('statTotalCount').textContent = tIncomeN.toLocaleString();
+                document.getElementById('statCampusCount').textContent = HOTELS.length + ' 个';
+                document.getElementById('statPerCapita').textContent = tIncomeN > 0 ? '¥' + Math.round(tIncome / tIncomeN).toLocaleString() : '-';
+            }
+
+            // 空数据提示
+            if (!document.getElementById('incomeBody').innerHTML.trim()) {
+                showEmptyTip(document.getElementById('dataLoading'), '本月暂无收入数据');
+                return;
+            }
+            loading.style.display = 'none';
+            content.style.display = 'block';
+            fetching = false;
+        }
+
+        // 统一房间统计函数：楼栋房间、基本信息共用同一算法
+        // 返回 rooms去重房间数, beds床位数, publishedRooms在用, unpublishedRooms停用
+        // 2026-08-03 修正：房间名可能带后缀（（有窗）/（无窗）/（二人间）/（三人间）/（有窗打不开）），
+        // 主记录"8201（有窗）"与子记录"8201（三人间）-1"是同一房间，必须归一化后合并
+        function normRoomName(rn) {
+            // 去掉（有窗）（无窗）（二人间）（三人间）（有窗打不开）等后缀
+            var n = rn.replace(/（[^）]*）/g, '').replace(/\([^)]*\)/g, '');
+            // 按-分割。命名格式多样：
+            //   B0501 / B0501-1（字母+数字，B座）
+            //   301 / 801-1（纯数字）
+            //   主楼-301-1 / 东副楼-201-2（楼栋名-房号-床位号，塔利北）
+            var parts = n.split('-').map(function(p) { return p.trim(); }).filter(function(p) { return p; });
+            if (!parts.length) return rn;
+            var first = parts[0];
+            // 第一部分含字母（B0501、A301）→ 整个是房号
+            if (/[A-Za-z]/.test(first)) return first;
+            // 第一部分是数字（301、8201）→ 就是房号
+            if (/^\d+$/.test(first)) return first;
+            // 第一部分是汉字楼栋名（主楼/东副楼）→ 取下一个数字段
+            for (var i = 1; i < parts.length; i++) {
+                if (/^\d+$/.test(parts[i])) return parts[i];
+            }
+            return first;
+        }
+        function calcRoomStats(rooms) {
+            // 2026-08-03 用户核对系统口径：系统只统计"已发布(roomIsPublish=0)"的房间/床位
+            // （B栋验证：1506床 = 系统1422 + 84床未发布房间）
+            // 2026-08-12 修正：发布状态只看主记录（塔利北"主楼-301-5/6"未发布床位不影响房间在用状态）
+            const seen = {};
+            rooms.forEach(r => {
+                const rn = r.roomName || '';
+                const isSub = rn.includes('-');
+                const baseName = normRoomName(rn);
+                if (!seen[baseName]) {
+                    seen[baseName] = { hasSub: false, mainBedNum: 1, subCount: 0, published: true };
+                }
+                if (!isSub && (r.roomIsPublish === 1 || r.roomIsPublish === '1')) {
+                    // 主记录未发布 → 整个房间未发布
+                    seen[baseName].published = false;
+                }
+                if (isSub) {
+                    seen[baseName].hasSub = true;
+                    // 只统计已发布床位（塔利北5/6号床未发布不算在用床位）
+                    if (r.roomIsPublish !== 1 && r.roomIsPublish !== '1') {
+                        seen[baseName].subCount++;
+                    }
+                }
+                else { seen[baseName].mainBedNum = r.bedNum || 1; }
+            });
+            let beds = 0, publishedRooms = 0, unpublishedRooms = 0;
+            Object.values(seen).forEach(v => {
+                // 只统计已发布房间的床位（与系统口径一致）
+                if (v.published) beds += v.hasSub ? v.subCount : v.mainBedNum;
+                if (v.published) publishedRooms++; else unpublishedRooms++;
+            });
+            return { rooms: Object.keys(seen).length, beds: beds, publishedRooms: publishedRooms, unpublishedRooms: unpublishedRooms };
+        }
+
+        // 基本信息
+        async function fetchInfo() {
+            const loading = document.getElementById('infoLoading');
+            const content = document.getElementById('infoContent');
+            loading.style.display = 'block';
+            content.style.display = 'none';
+
+            try {
+                const hotelRes = await apiGet('/api/hotel/web/basics/getHotelList');
+                const hotelData = hotelRes;
+                // 排除旧校区 + 协议酒店（10082嘉曼/10084景然智慧/10146逸达，正常不使用）
+                const PROTOCOL_IDS = ['10082', '10084', '10146'];
+                const hotels = (hotelData.data || []).filter(h => !h.hotelName.includes('旧') && !PROTOCOL_IDS.includes(String(h.hotelId)));
+
+                // 昨日在住人数（一次查询全部校区，避免循环内重复调用）
+                let yesterdayMap = {};
+                try {
+                    const yRes = await fetch('/api/occupancy/yesterday');
+                    const yData = await yRes.json();
+                    (yData.records || []).forEach(r => { yesterdayMap[r.hotel_id] = r.cnt; });
+                } catch(e) {}
+
+                const details = await Promise.all(hotels.map(async h => {
+                    let stats = { rooms: 0, beds: 0, publishedRooms: 0, unpublishedRooms: 0 };
+                    let resCount = 0;
+                    try {
+                        const campusData = await getCampusData(h.hotelId);
+                        stats = calcRoomStats(campusData.rooms);
+                    } catch(e) {}
+                    // 昨日在住人数（用已查询的yesterdayMap）
+                    resCount = yesterdayMap[String(h.hotelId)] || 0;
+                    return { ...h, roomCount: stats.publishedRooms, bedCount: stats.beds, resCount, publishedRooms: stats.publishedRooms, unpublishedRooms: stats.unpublishedRooms };
+                }));
+
+                let html = '';
+                let totalRooms = 0, totalBeds = 0, totalRes = 0, totalPub = 0, totalUnpub = 0;
+                details.forEach(h => {
+                    totalRooms += h.roomCount;
+                    totalBeds += h.bedCount;
+                    totalRes += h.resCount;
+                    totalPub += h.publishedRooms || 0;
+                    totalUnpub += h.unpublishedRooms || 0;
+                    // 成立时间：从HOTELS匹配
+                    const hotelInfo = HOTELS.find(x => x.id === String(h.hotelId));
+                    const startTime = hotelInfo ? hotelInfo.start : '-';
+                    html += '<tr>' +
+                        '<td>' + h.hotelId + '</td>' +
+                        '<td class="name-cell">' + h.hotelName + '</td>' +
+                        '<td>' + startTime + '</td>' +
+                        '<td class="number">' + h.roomCount + '</td>' +
+                        '<td class="number">' + h.bedCount + '</td>' +
+                        '<td class="number">' + h.resCount + '</td>' +
+                        '<td style="font-size:0.75rem">' + (h.unpublishedRooms > 0 ? '<span style="color:#fbbf24">在用 ' + h.publishedRooms + ' / 停用 ' + h.unpublishedRooms + '</span>' : '<span style="color:#4ade80">✅ 全部在用</span>') + '</td>' +
+                        '</tr>';
+                });
+                html += '<tr class="total-row"><td colspan="3">合计</td>' +
+                    '<td class="number">' + totalRooms + '</td>' +
+                    '<td class="number">' + totalBeds + '</td>' +
+                    '<td class="number">' + totalRes + '</td><td>-</td></tr>';
+
+                document.getElementById('infoBody').innerHTML = html;
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            } catch(e) {
+                loading.textContent = '加载失败: ' + e.message;
+            }
+        }
+
+        // 周效比
+        let weeklyFetching = false;
+        async function fetchWeekly() {
+            if (weeklyFetching) return;
+            weeklyFetching = true;
+            const loading = document.getElementById('weeklyLoading');
+            const content = document.getElementById('weeklyContent');
+            loading.style.display = 'block';
+            content.style.display = 'none';
+
+            // 日期范围（默认上周一至周日，可选任意范围）
+            const now = new Date();
+            const dayOfWeek = now.getDay() || 7; // 周日=7
+            const lastMonday = new Date(now);
+            lastMonday.setDate(now.getDate() - dayOfWeek - 6);
+            const lastSunday = new Date(lastMonday);
+            lastSunday.setDate(lastMonday.getDate() + 6);
+            const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+
+            // 用户选择的日期（未选时用默认上周）
+            const startInput = document.getElementById('weeklyStart');
+            const endInput = document.getElementById('weeklyEnd');
+            if (startInput && !startInput.value) startInput.value = fmt(lastMonday);
+            if (endInput && !endInput.value) endInput.value = fmt(lastSunday);
+            const startDate = startInput.value || fmt(lastMonday);
+            const endDate = endInput.value || fmt(lastSunday);
+
+            const d1 = new Date(startDate), d2 = new Date(endDate);
+            const displayStart = (d1.getMonth()+1) + '月' + d1.getDate() + '日';
+            const displayEnd = (d2.getMonth()+1) + '月' + d2.getDate() + '日';
+
+            document.getElementById('weeklyDate').textContent = displayStart + ' - ' + displayEnd;
+
+            // 床位占比标题（按所选天数）
+            const daysSel = Math.round((d2 - d1) / 86400000) + 1;
+            const bedsTitle = document.getElementById('weeklyBedsTitle');
+            if (bedsTitle) bedsTitle.textContent = daysSel + '天累计';
+
+            // 并行加载所有校区
+            const promises = HOTELS.map(async h => {
+                try {
+                    // 本地统计（收入+分类+7天在住，毫秒级，替代AMS分页拉取）
+                    const statsRes = await fetch('/api/weekly/stats?hotel_id=' + h.id + '&start=' + startDate + '&end=' + endDate);
+                    const stats = await statsRes.json();
+                    const income = stats.income || 0;
+                    const totalCount = stats.total_count || 0;
+                    const teacher = stats.teacher || 0;
+                    const free = stats.free || 0;
+                    const selfPay = stats.self_pay || 0;
+                    const occ7 = stats.occ7 || 0;
+                    const markBreakdown = stats.marks || {};
+
+                    // 总床位按实际选择的日期范围计算：单日床位 × 所选天数
+                    let totalBeds = 0;
+                    try {
+                        const campusData = await getCampusData(h.id);
+                        totalBeds = calcRoomStats(campusData.rooms).beds * daysSel;
+                    } catch(e2) {}
+
+                    return { name: h.name, income, count: totalCount, teacher, free, selfPay, bzr: staffCount(h.name), bj: (getCleaners()[h.name] || 0), ba: (CAMPUS_SECURITY[h.name] || 0), totalBeds: totalBeds, occupiedBeds: occ7, markBreakdown };
+                } catch(e) {
+                    return { name: h.name, income: 0, count: 0, teacher: 0, free: 0, selfPay: 0, bzr: 0, bj: 0, ba: 0, totalBeds: 0, occupiedBeds: 0 };
+                }
+            });
+
+            const results = await Promise.all(promises);
+            window._weeklyResults = results;
+
+            // 存储到localStorage用于下周对比
+            try {
+                localStorage.setItem('ams_weekly_history', JSON.stringify({
+                    week: startDate,
+                    results: results.map(r => ({name: r.name, income: r.income, count: r.count, totalBeds: r.totalBeds, occupiedBeds: r.occupiedBeds}))
+                }));
+            } catch(e) {}
+
+            renderWeekly(results);
+            renderWeeklyBeds(results);
+            renderWeeklyValidate(results);
+        }
+
+        // 校验：总在住(教师+包住+自费) 应等于 床位占用数(已用床位)
+        function renderWeeklyValidate(results) {
+            const box = document.getElementById('weeklyValidate');
+            if (!box) return;
+            let mismatches = [];
+            results.forEach(r => {
+                const totalOcc = (r.teacher || 0) + (r.free || 0) + (r.selfPay || 0);
+                const bedOcc = r.occupiedBeds || 0;
+                if (totalOcc !== bedOcc) {
+                    mismatches.push({
+                        name: r.name,
+                        diff: bedOcc - totalOcc,
+                        totalOcc: totalOcc,
+                        bedOcc: bedOcc,
+                        marks: r.markBreakdown || {}
+                    });
+                }
+            });
+
+            if (mismatches.length === 0) {
+                box.style.display = 'block';
+                box.innerHTML = '<div style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);border-radius:10px;padding:12px 16px;font-size:0.85rem;color:#4ade80">✅ 数据校验通过：所有校区总在住与床位占用数一致</div>';
+            } else {
+                let html = '<div style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:10px;padding:12px 16px;font-size:0.85rem;color:#f87171">' +
+                    '⚠️ 数据校验不通过：以下校区总在住与床位占用数不一致<br>' +
+                    '<table style="margin-top:8px;font-size:0.8rem"><thead><tr><th>校区</th><th>总在住</th><th>床位占用</th><th>差异</th></tr></thead><tbody>';
+                mismatches.forEach(m => {
+                    html += '<tr><td>' + m.name + '</td><td>' + m.totalOcc + '</td><td>' + m.bedOcc + '</td><td style="font-weight:700">' + (m.diff > 0 ? '+' : '') + m.diff + '</td></tr>';
+                    // 财务标记明细（按计数排序，取前10）
+                    if (m.marks && Object.keys(m.marks).length > 0) {
+                        const sorted = Object.entries(m.marks).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                        html += '<tr><td colspan="4" style="text-align:left;font-size:0.75rem;color:#94a3b8">财务标记明细：' +
+                            sorted.map(([k, v]) => k + '×' + v).join('、') +
+                            (Object.keys(m.marks).length > 10 ? ' 等' + Object.keys(m.marks).length + '种' : '') +
+                            '</td></tr>';
+                    }
+                });
+                html += '</tbody></table></div>';
+                box.style.display = 'block';
+                box.innerHTML = html;
+            }
+        }
+
+        // 花名册（生活班主任名单，2026-08-02更新，22人）
+        var STAFF_DATA = [
+            { campus: "B座", company: "岸尚酒店", names: ["王怔鑫","柴浩凯","高博"] },
+            { campus: "C座", company: "肆季酒店", names: ["杨苏元","丁一博"] },
+            { campus: "D座", company: "拾奕酒店", names: ["云欣悦","李文臻"] },
+            { campus: "小新公寓", company: "拾奕酒店", names: ["李静怡","袁术飞","李瑞峰"] },
+            { campus: "力沃校区", company: "禾里酒店", names: ["陈韬","贾敏","崔佳乐","于洋"] },
+            { campus: "嵘泰校区", company: "新途径三分", names: ["吴国飞"] },
+            { campus: "塔利南校区", company: "新途径七分", names: ["常洪瑄","闫瑾","姜亚鑫"] },
+            { campus: "塔利北校区", company: "新途径四分", names: ["杨澜","呼斯乐","景鹏飞","史琴"] }
+        ];
+
+        // 各校区保洁/保安人数（2026-08-02 李瑞峰提供，未提供校区默认0）
+        // 保洁：暂无数据
+        var CAMPUS_SECURITY = { "B座": 2, "C座": 2, "力沃校区": 2 };
+        var CAMPUS_CLEANER = {};
+
+        // 从花名册取班主任数（按校区名匹配，支持"上岸公寓B座"→"B座"）
+        function staffCount(campusName) {
+            var short = campusName.replace('上岸公寓', '').replace('校区', '').replace('景然', '').replace('公寓', '');
+            for (var i = 0; i < STAFF_DATA.length; i++) {
+                if (STAFF_DATA[i].campus.indexOf(short) >= 0 || short.indexOf(STAFF_DATA[i].campus) >= 0) {
+                    return STAFF_DATA[i].names.length;
+                }
+            }
+            return 0;
+        }
+
+        // 在职人员
+        function fetchStaff() {
+            const loading = document.getElementById('staffLoading');
+            const content = document.getElementById('staffContent');
+            loading.style.display = 'none';
+            content.style.display = 'block';
+
+            let staffHtml = '';
+            let totalStaff = 0;
+            STAFF_DATA.forEach(s => {
+                const count = s.names.length;
+                totalStaff += count;
+                staffHtml += '<tr>' +
+                    '<td class="name-cell">' + s.campus + '</td>' +
+                    '<td>' + s.company + '</td>' +
+                    '<td class="number">' + count + '</td>' +
+                    '<td class="name-cell" style="text-align:left">' + s.names.join('、') + '</td>' +
+                    '</tr>';
+            });
+            staffHtml += '<tr class="total-row"><td colspan="2">合计</td>' +
+                '<td class="number">' + totalStaff + '</td>' +
+                '<td></td></tr>';
+
+            document.getElementById('staffBody').innerHTML = staffHtml;
+        }
+
+        // 保洁人数（每周可编辑，存localStorage）
+        function getCleaners() {
+            try { return JSON.parse(localStorage.getItem('ams_weekly_cleaners') || '{}'); }
+            catch(e) { return {}; }
+        }
+        function saveCleaner(campusName, val) {
+            var c = getCleaners();
+            c[campusName] = parseInt(val) || 0;
+            localStorage.setItem('ams_weekly_cleaners', JSON.stringify(c));
+        }
+
+        function renderWeekly(results) {
+            let totalIncome = 0, totalCount = 0;
+            let totalTeacher = 0, totalFree = 0, totalSelf = 0;
+            let totalBzr = 0, totalBj = 0, totalBa = 0;
+            let incomeHtml = '';
+
+            results.forEach(r => {
+                totalIncome += r.income;
+                totalCount += r.count;
+                totalTeacher += r.teacher;
+                totalFree += r.free;
+                totalSelf += r.selfPay;
+                totalBzr += (r.bzr || 0);
+                totalBj += (r.bj || 0);
+                totalBa += (r.ba || 0);
+                // 总在住 = 教师+包住+自费（真实人数）
+                const totalOccupied = r.teacher + r.free + r.selfPay;
+                // 人效比 = 收入 ÷ (班主任+保洁+保安)
+                const staff = (r.bzr || 0) + (r.bj || 0) + (r.ba || 0);
+                const efficiency = staff > 0 ? Math.round(r.income / staff) : 0;
+                incomeHtml += '<tr><td class="name-cell">' + r.name + '</td>' +
+                    '<td>' + totalOccupied.toLocaleString() + '</td>' +
+                    '<td>' + r.teacher + '</td>' +
+                    '<td>' + r.free + '</td>' +
+                    '<td>' + r.selfPay + '</td>' +
+                    '<td class="money">' + r.income.toLocaleString() + '</td>' +
+                    '<td>' + (r.bzr || 0) + '</td>' +
+                    '<td><input type="number" min="0" value="' + (r.bj || 0) + '" onchange="saveCleaner(\'' + r.name + '\', this.value)" style="width:52px;padding:4px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.8rem;text-align:center"></td>' +
+                    '<td>' + (r.ba || 0) + '</td>' +
+                    '<td><b>' + efficiency.toLocaleString() + '</b></td></tr>';
+            });
+
+            const totalOccupiedAll = totalTeacher + totalFree + totalSelf;
+            const totalStaff = totalBzr + totalBj + totalBa;
+            const totalEff = totalStaff > 0 ? Math.round(totalIncome / totalStaff) : 0;
+            incomeHtml += '<tr class="total-row"><td>合计</td>' +
+                '<td>' + totalOccupiedAll.toLocaleString() + '</td>' +
+                '<td>' + totalTeacher + '</td>' +
+                '<td>' + totalFree + '</td>' +
+                '<td>' + totalSelf + '</td>' +
+                '<td>' + totalIncome.toLocaleString() + '</td>' +
+                '<td>' + totalBzr + '</td>' +
+                '<td>' + totalBj + '</td>' +
+                '<td>' + totalBa + '</td>' +
+                '<td><b>' + totalEff.toLocaleString() + '</b></td></tr>';
+
+            document.getElementById('weeklyBody').innerHTML = incomeHtml;
+            document.getElementById('weeklyLoading').style.display = 'none';
+            document.getElementById('weeklyContent').style.display = 'block';
+            weeklyFetching = false;
+        }
+
+        function renderWeeklyBeds(results) {
+            let html = '';
+            let totalTotalBeds = 0, totalOccupied = 0, totalEmpty = 0;
+
+            results.forEach(r => {
+                const totalBeds = r.totalBeds || 0;
+                const occupied = r.occupiedBeds || 0;
+                const empty = totalBeds - occupied;
+                const ratio = totalBeds > 0 ? Math.round(occupied / totalBeds * 100) : 0;
+                totalTotalBeds += totalBeds;
+                totalOccupied += occupied;
+                totalEmpty += empty;
+
+                // 颜色编码
+                let ratioColor = '#4ade80'; // green
+                if (ratio > 90) ratioColor = '#f87171'; // red
+                else if (ratio > 70) ratioColor = '#fbbf24'; // yellow
+
+                html += '<tr>' +
+                    '<td class="name-cell">' + r.name + '</td>' +
+                    '<td class="number">' + totalBeds.toLocaleString() + '</td>' +
+                    '<td class="number">' + occupied.toLocaleString() + '</td>' +
+                    '<td class="number">' + empty.toLocaleString() + '</td>' +
+                    '<td style="color:' + ratioColor + ';font-weight:700">' + ratio + '%</td>' +
+                    '</tr>';
+            });
+
+            const totalRatio = totalTotalBeds > 0 ? Math.round(totalOccupied / totalTotalBeds * 100) : 0;
+            let totalRatioColor = '#4ade80';
+            if (totalRatio > 90) totalRatioColor = '#f87171';
+            else if (totalRatio > 70) totalRatioColor = '#fbbf24';
+
+            html += '<tr class="total-row"><td>合计</td>' +
+                '<td class="number">' + totalTotalBeds.toLocaleString() + '</td>' +
+                '<td class="number">' + totalOccupied.toLocaleString() + '</td>' +
+                '<td class="number">' + totalEmpty.toLocaleString() + '</td>' +
+                '<td style="color:' + totalRatioColor + '">' + totalRatio + '%</td></tr>';
+
+            document.getElementById('weeklyBedsBody').innerHTML = html;
+            document.getElementById('weeklyBedsLoading').style.display = 'none';
+            document.getElementById('weeklyBedsTable').style.display = 'table';
+        }
+
+        // 在住名单
+        let allResidents = [];
+        let resFetching = false;
+
+        // 先加载当天快照（每天7点抓取存库）
+        async function loadResidentsSnapshot() {
+            try {
+                const r = await fetch('/api/residents/snapshot');
+                const d = await r.json();
+                if (d.code !== 200 || !d.records.length) return;
+                const snap = d.records[0].snap_date;
+                // 显示快照汇总条
+                const summary = document.getElementById('resSnapSummary');
+                let html = '<div style="background:rgba(255,255,255,0.9);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:0.85rem">';
+                html += '<span style="color:#94a3b8">📅 每日快照（' + snap + '）:</span> ';
+                d.records.forEach(r => {
+                    html += '<span style="margin-right:10px">' + r.hotel_name.replace('上岸公寓','').replace('景然力沃校区','力沃').replace('校区','') + ' <b style="color:#4ade80">' + r.resident_count + '</b></span>';
+                });
+                const total = d.records.reduce((s, r) => s + r.resident_count, 0);
+                html += '<span style="margin-left:6px;color:#38bdf8">合计 <b>' + total + '</b></span>';
+                html += '</div>';
+                summary.innerHTML = html;
+            } catch(e) {}
+        }
+
+        async function fetchResidents() {
+            if (resFetching) return;
+            resFetching = true;
+            const loading = document.getElementById('resLoading');
+            const content = document.getElementById('resContent');
+            loading.style.display = 'block';
+            content.style.display = 'none';
+            document.getElementById('resLastUpdate').textContent = new Date().toLocaleString('zh-CN');
+
+            const select = document.getElementById('resCampus');
+            select.innerHTML = '<option value="">全部校区</option>';
+
+            // 并行请求所有校区
+            const promises = HOTELS.map(async h => {
+                try {
+                    const r = await fetch('/api/hotel/web/business/checkOrder/listAcc/' + h.id + '?pageSize=500');
+                    const d = await r.json();
+                    const rows = d.rows || [];
+                    rows.forEach(row => row._campusName = h.name);
+                    return rows;
+                } catch(e) { return []; }
+            });
+            const results = await Promise.all(promises);
+            allResidents = results.flat();
+
+            // 填充校区下拉
+            HOTELS.forEach((h, i) => {
+                if (results[i].length > 0) {
+                    select.innerHTML += '<option value="' + h.name + '">' + h.name + ' (' + results[i].length + ')</option>';
+                }
+            });
+
+            loading.style.display = 'none';
+            content.style.display = 'block';
+            filterResidents();
+            resFetching = false;
+        }
+
+        let resDebounce = null;
+        function filterResidents() {
+            clearTimeout(resDebounce);
+            resDebounce = setTimeout(_filterResidents, 200);
+        }
+        function _filterResidents() {
+            const campus = document.getElementById('resCampus').value;
+            const search = document.getElementById('resSearch').value.trim().toLowerCase();
+
+            let filtered = allResidents;
+            if (campus) filtered = filtered.filter(r => r._campusName === campus);
+            if (search) filtered = filtered.filter(r =>
+                (r.name || '').toLowerCase().includes(search) ||
+                (r.roomName || '').toLowerCase().includes(search) ||
+                (r.gmobile || '').includes(search)
+            );
+
+            document.getElementById('resCount').textContent = '共 ' + filtered.length + ' 人';
+
+            // 一次性构建HTML
+            const html = filtered.map((r, i) => {
+                const sex = r.gsex === '2' ? '女' : r.gsex === '1' ? '男' : (r.gsex || '-');
+                const checkIn = (r.checkInTime || '').substring(0, 16);
+                const dueOut = (r.dueCheckOutTime || '').substring(0, 16);
+                return '<tr><td>' + (i+1) + '</td><td class="name-cell">' + (r._campusName||'-') + '</td><td class="name-cell">' + (r.name||'-') + '</td><td>' + sex + '</td><td>' + (r.roomFloor||'-') + '</td><td>' + (r.roomBuild||'-') + '</td><td>' + (r.roomName||'-') + '</td><td>' + (r.gmobile||'-') + '</td><td style="font-size:0.75rem">' + (r.mediName||'-') + '</td><td style="font-size:0.75rem;white-space:nowrap">' + checkIn + '</td><td style="font-size:0.75rem;white-space:nowrap">' + dueOut + '</td><td>' + (r.days||'-') + '</td></tr>';
+            }).join('');
+            document.getElementById('resBody').innerHTML = html;
+        }
+
+        // 楼栋房间管理
+        const ROOM_STATES = {VC:'空净房', VD:'脏房', OC:'在住', MF:'维修房', KF:'空房', ZR:'钟点房'};
+        const ROOM_COLORS = {VC:'#4ade80', VD:'#fbbf24', OC:'#f87171', MF:'#94a3b8', KF:'#38bdf8', ZR:'#c084fc'};
+
+        function initRoomPage() {
+            const sel = document.getElementById('roomCampus');
+            if (sel.options.length <= 1) {
+                HOTELS.forEach(h => sel.innerHTML += '<option value="' + h.id + '">' + h.name + '</option>');
+            }
+        }
+
+        // 当前选中的楼层
+        var currentFloor = null;
+        var floorRoomsCache = {}; // 校区ID -> 楼层名 -> 房间数组
+
+        async function fetchRooms() {
+            const hotelId = document.getElementById('roomCampus').value;
+            if (!hotelId) return;
+            const loading = document.getElementById('roomLoading');
+            const content = document.getElementById('roomContent');
+            loading.style.display = 'block';
+            content.style.display = 'none';
+            loading.textContent = '加载中...';
+
+            try {
+                const campusData = await getCampusData(hotelId);
+                const rooms = campusData.rooms;
+                const bMap = campusData.bMap;
+
+                // 按楼层分组（只保留有房间的楼层）
+                const floorGroups = {};
+                rooms.forEach(r => {
+                    const fn = bMap[r.roomFloor] || r.roomFloor || '未知';
+                    if (!floorGroups[fn]) floorGroups[fn] = [];
+                    floorGroups[fn].push(r);
+                });
+                floorRoomsCache[hotelId] = floorGroups;
+
+                // 渲染左侧楼层树（每个楼层显示 房间数/床位数）
+                const floorNames = Object.keys(floorGroups).sort();
+                let treeHtml = '<div style="font-size:0.75rem;color:#94a3b8;margin-bottom:8px;font-weight:600">楼层列表</div>';
+                floorNames.forEach(fn => {
+                    // 统计该楼层（只算已发布房间）
+                    const fr = floorGroups[fn];
+                    const seen = {};
+                    fr.forEach(r => {
+                        const rn = r.roomName || '';
+                        const isSub = rn.includes('-');
+                        const base = normRoomName(rn);
+                        if (!seen[base]) seen[base] = { hasSub: false, mainBedNum: 0, subCount: 0, published: true };
+                        if (r.roomIsPublish === 1 || r.roomIsPublish === '1') seen[base].published = false;
+                        if (isSub) { seen[base].hasSub = true; seen[base].subCount++; }
+                        else { seen[base].mainBedNum = r.bedNum || 0; }
+                    });
+                    const rn = Object.keys(seen).length;
+                    const beds = Object.values(seen).reduce((s, v) => s + (v.published ? (v.hasSub ? v.subCount : v.mainBedNum) : 0), 0);
+                    const active = currentFloor === fn ? ' style="background:rgba(56,189,248,0.15);border-left-color:#38bdf8;color:#38bdf8"' : '';
+                    treeHtml += '<div class="nav-item" onclick="selectFloor(\'' + fn.replace(/'/g, "\\'") + '\')" style="padding:8px 10px;border-left:3px solid transparent;cursor:pointer;font-size:0.8rem;border-radius:6px;margin:2px 0"' + active + '>' +
+                        fn + '<br><span style="font-size:0.7rem;color:#94a3b8">' + rn + '间/' + beds + '床</span></div>';
+                });
+
+                document.getElementById('roomFloorTree').innerHTML = treeHtml;
+
+                // 默认选中第一个楼层
+                if (floorNames.length > 0) {
+                    selectFloor(floorNames[0]);
+                } else {
+                    document.getElementById('roomFloorSummary').textContent = '该校区暂无楼层数据';
+                    document.getElementById('roomBody').innerHTML = '';
+                }
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            } catch(e) {
+                loading.textContent = '加载失败: ' + e.message;
+            }
+        }
+
+        // 选中楼层 → 渲染右侧房间表
+        function selectFloor(floorName) {
+            currentFloor = floorName;
+            const hotelId = document.getElementById('roomCampus').value;
+            const floorGroups = floorRoomsCache[hotelId] || {};
+            const floorRooms = floorGroups[floorName] || [];
+
+            // 高亮楼层树
+            document.querySelectorAll('#roomFloorTree .nav-item').forEach(el => {
+                el.style.background = '';
+                el.style.borderLeftColor = 'transparent';
+                el.style.color = '';
+            });
+
+            // 统计该楼层（只算已发布房间）
+            const seen = {};
+            floorRooms.forEach(room => {
+                const rn = room.roomName || '';
+                const isSub = rn.includes('-');
+                const baseName = normRoomName(rn);
+                if (!seen[baseName]) {
+                    seen[baseName] = { beds: 0, window: "", hasSub: false, mainBedNum: 0, published: true };
+                }
+                if (room.roomIsPublish === 1 || room.roomIsPublish === '1') {
+                    seen[baseName].published = false;
+                }
+                if (isSub) {
+                    seen[baseName].beds += 1;
+                    seen[baseName].hasSub = true;
+                } else {
+                    seen[baseName].mainBedNum = (room.bedNum || 1);
+                }
+                const rn2 = room.roomName || '';
+                if (rn2.includes('有窗打不开') && !seen[baseName].window) seen[baseName].window = '有窗打不开';
+                else if (rn2.includes('有窗') && !seen[baseName].window) seen[baseName].window = '有窗';
+                else if (rn2.includes('无窗') && !seen[baseName].window) seen[baseName].window = '无窗';
+            });
+            Object.keys(seen).forEach(k => {
+                if (!seen[k].hasSub && seen[k].mainBedNum > 0) seen[k].beds = seen[k].mainBedNum;
+                if (!seen[k].published) seen[k].beds = 0;
+            });
+
+            // 楼层汇总
+            const pubRooms = Object.values(seen).filter(v => v.published).length;
+            const totalBeds = Object.values(seen).reduce((s, v) => s + (v.published ? v.beds : 0), 0);
+            // 类型分布（4人间X/6人间Y/8人间Z）
+            const typeDist = {};
+            Object.values(seen).forEach(v => {
+                if (!v.published) return;
+                const key = v.beds + '人间';
+                typeDist[key] = (typeDist[key] || 0) + 1;
+            });
+            const typeStr = Object.keys(typeDist).sort((a, b) => parseInt(a) - parseInt(b))
+                .map(k => k + '×' + typeDist[k]).join('、');
+            document.getElementById('roomFloorSummary').innerHTML =
+                '<span><b style="color:#38bdf8">' + floorName + '</b>：' + pubRooms + '间房 / ' + totalBeds + '床（已发布）</span>' +
+                '<span style="color:#94a3b8;font-size:0.75rem">' + typeStr + '</span>' +
+                '<select id="roomTypeFilter" onchange="selectFloor(currentFloor)" class="ctrl-mini">' +
+                '<option value="">全部房型</option>' +
+                '<option value="2">2人间</option><option value="3">3人间</option><option value="4">4人间</option>' +
+                '<option value="5">5人间</option><option value="6">6人间</option><option value="8">8人间</option></select>';
+
+            // 读取筛选条件
+            const filterVal = (document.getElementById('roomTypeFilter') || {}).value || '';
+            const filterMap = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '8': 8 };
+
+            // 渲染房间表
+            const sortedRooms = Object.keys(seen).sort();
+            const isMale = floorName.includes('男');
+            const isFemale = floorName.includes('女');
+            const gender = isMale ? '男' : isFemale ? '女' : '-';
+
+            let html = '';
+            let filteredCount = 0, filteredBeds = 0;
+            sortedRooms.forEach(roomName => {
+                const room = seen[roomName];
+                // 房型筛选（2/3/4/5/6/8人间）
+                if (filterVal !== '' && room.beds !== filterMap[filterVal]) return;
+                const rowStyle = room.published ? '' : ' style="opacity:0.45;background:rgba(100,116,139,0.08)"';
+                const statusHtml = room.published
+                    ? '<td style="color:#4ade80;font-size:0.75rem">✅ 在用</td>'
+                    : '<td style="color:#f87171;font-size:0.75rem">❌ 停用</td>';
+
+                html += '<tr' + rowStyle + '>';
+                html += '<td class="name-cell">' + roomName + '</td>';
+                html += '<td>' + room.beds + '</td>';
+                html += '<td>' + (room.window || '-') + '</td>';
+                html += '<td>' + gender + '</td>';
+                html += statusHtml;
+                html += '</tr>';
+                if (room.published) { filteredCount++; filteredBeds += room.beds; }
+            });
+
+            // 合计行
+            if (filterVal === '') {
+                html += '<tr class="total-row"><td>合计</td>' +
+                    '<td>' + totalBeds + '</td>' +
+                    '<td colspan="3">' + pubRooms + ' 间房</td></tr>';
+            } else {
+                html += '<tr class="total-row"><td>筛选合计</td>' +
+                    '<td>' + filteredBeds + '</td>' +
+                    '<td colspan="3">' + filteredCount + ' 间房</td></tr>';
+            }
+
+            document.getElementById('roomBody').innerHTML = html;
+        }
+
+        // 本年每月各校区在住人次（从income_flow缓存表聚合）
+        function fetchMonthlyOccupancy() {
+            const loading = document.getElementById('occLoading');
+            loading.style.display = 'block';
+            const body = document.getElementById('occBody');
+            body.innerHTML = '<tr><td colspan="14" style="color:#94a3b8">加载中...</td></tr>';
+
+            fetch('/api/occupancy/monthly?year=' + new Date().getFullYear())
+                .then(r => r.json())
+                .then(d => {
+                    if (d.code !== 200) throw new Error(d.msg);
+                    // 汇总：校区 -> 月: 人次
+                    const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+                    const data = {};
+                    (d.records || []).forEach(r => {
+                        if (!data[r.hotel_name]) data[r.hotel_name] = {};
+                        const m = parseInt(r.ym.split('-')[1]);
+                        data[r.hotel_name][m] = r.cnt;
+                    });
+                    let html = '';
+                    let grandTotal = 0;
+                    // 每月合计
+                    const monthTotals = {};
+                    for (let m = 1; m <= 12; m++) monthTotals[m] = 0;
+                    const campusOrder = ['上岸公寓B座','上岸公寓C座','上岸公寓D座','小新公寓','景然力沃校区','嵘泰校区','塔利北校区','塔利南校区','城际酒店'];
+                    campusOrder.forEach(campus => {
+                        const months = data[campus] || {};
+                        const rowTotal = Object.values(months).reduce((s, v) => s + v, 0);
+                        grandTotal += rowTotal;
+                        html += '<tr><td class="name-cell">' + campus + '</td>';
+                        for (let m = 1; m <= 12; m++) {
+                            const v = months[m] || 0;
+                            monthTotals[m] += v;
+                            const style = v ? '' : ' style="color:#94a3b8"';
+                            html += '<td class="number"' + style + '>' + (v ? v.toLocaleString() : '-') + '</td>';
+                        }
+                        html += '<td class="number" style="font-weight:700">' + rowTotal.toLocaleString() + '</td></tr>';
+                    });
+                    // 合计行（含每月单月合计）
+                    html += '<tr class="total-row"><td>合计</td>';
+                    for (let m = 1; m <= 12; m++) {
+                        const v = monthTotals[m];
+                        html += '<td class="number">' + (v ? v.toLocaleString() : '-') + '</td>';
+                    }
+                    html += '<td class="number">' + grandTotal.toLocaleString() + '</td></tr>';
+                    body.innerHTML = html;
+                    loading.style.display = 'none';
+                })
+                .catch(e => {
+                    body.innerHTML = '<tr><td colspan="14" style="color:#f87171">⚠️ 加载失败：' + e.message + '（提示：需先拉取流水数据，见 fetch_income_flow.py）</td></tr>';
+                    loading.style.display = 'none';
+                });
+        }
+
+        // 每日在住人数明细（选月份看每天各校区）
+        function fetchDailyOccupancy() {
+            const month = (document.getElementById('occMonthSelect') || {}).value || '2026-08';
+            const loading = document.getElementById('dailyLoading');
+            const body = document.getElementById('dailyBody');
+            loading.style.display = 'block';
+            body.innerHTML = '<tr><td colspan="11" style="color:#94a3b8">加载中...</td></tr>';
+
+            fetch('/api/occupancy/daily?month=' + month)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.code !== 200) throw new Error(d.msg);
+                    // 汇总：校区ID -> 日: 人次
+                    // ⚠️ 不能用 Object.keys(hotelMap) 遍历——JS对象数字键自动升序排序，会打乱校区顺序！
+                    const hotelMap = {
+                        '10144': 'B座', '10137': 'C座', '10143': 'D座', '10145': '小新',
+                        '10148': '力沃', '10138': '嵘泰', '10139': '塔利北', '10140': '塔利南', '10163': '城际酒店'
+                    };
+                    const hotelOrder = ['10144','10137','10143','10145','10148','10138','10139','10140','10163'];
+                    const data = {};
+                    (d.records || []).forEach(r => {
+                        if (!data[r.hotel_id]) data[r.hotel_id] = {};
+                        data[r.hotel_id][parseInt(r.day)] = r.cnt;
+                    });
+                    // 当月天数
+                    const [y, m] = month.split('-').map(Number);
+                    const daysInMonth = new Date(y, m, 0).getDate();
+                    // 转置显示：行=日期，列=校区（手机友好）
+                    let html = '';
+                    // 每天合计
+                    const dayTotals = {};
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        let sum = 0;
+                        hotelOrder.forEach(hid => { sum += (data[hid] || {})[day] || 0; });
+                        dayTotals[day] = sum;
+                    }
+                    // 行=日期
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        html += '<tr><td class="name-cell">' + month + '-' + String(day).padStart(2, '0') + '</td>';
+                        hotelOrder.forEach(hid => {
+                            const v = (data[hid] || {})[day] || 0;
+                            const style = v ? '' : ' style="color:#94a3b8"';
+                            html += '<td class="number"' + style + '>' + (v || '-') + '</td>';
+                        });
+                        html += '<td class="number" style="font-weight:700">' + (dayTotals[day] || '-') + '</td></tr>';
+                    }
+                    // 合计行（校区列合计）
+                    html += '<tr class="total-row"><td>合计</td>';
+                    hotelOrder.forEach(hid => {
+                        const rowSum = Object.values(data[hid] || {}).reduce((s, v) => s + v, 0);
+                        html += '<td class="number">' + rowSum + '</td>';
+                    });
+                    html += '<td class="number">' + Object.values(dayTotals).reduce((s, v) => s + v, 0) + '</td></tr>';
+                    body.innerHTML = html;
+                    loading.style.display = 'none';
+                })
+                .catch(e => {
+                    body.innerHTML = '<tr><td colspan="11" style="color:#f87171">⚠️ 加载失败：' + e.message + '</td></tr>';
+                    loading.style.display = 'none';
+                });
+        }
+
+        // 收入报表
+        let incomePage = 1;
+        let incomeTotal = 0;
+
+        function initIncomePage() {
+            const sel = document.getElementById('incomeCampus');
+            if (sel.options.length <= 1) {
+                HOTELS.forEach(h => sel.innerHTML += '<option value="' + h.id + '">' + h.name + '</option>');
+            }
+            // 默认本月
+            const now = new Date();
+            const start = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
+            const end = now.toISOString().split('T')[0];
+            if (!document.getElementById('incomeStart').value) {
+                document.getElementById('incomeStart').value = start;
+                document.getElementById('incomeEnd').value = end;
+            }
+        }
+
+        async function fetchIncome(page) {
+            incomePage = page || 1;
+            const hotelId = document.getElementById('incomeCampus').value;
+            const startDate = document.getElementById('incomeStart').value;
+            const endDate = document.getElementById('incomeEnd').value;
+            if (!startDate || !endDate) { alert('请选择日期范围'); return; }
+
+            const loading = document.getElementById('incomeLoading');
+            const content = document.getElementById('incomeContent');
+            loading.style.display = 'block';
+            content.style.display = 'none';
+            loading.textContent = '加载中...';
+
+            try {
+                // 明细（本地SQLite，共用数据源）
+                const url = '/api/income/records?hotel_id=' + (hotelId || '') + '&start=' + startDate + '&end=' + endDate + '&page=' + incomePage + '&pageSize=20';
+
+                const r = await fetch(url);
+                const d = await r.json();
+                const rows = d.rows || [];
+                incomeTotal = d.total || 0;
+
+                // 获取总金额（本地SQLite统计，毫秒级）
+                const totalUrl = '/api/income/summary?hotel_id=' + (hotelId || '') + '&start=' + startDate + '&end=' + endDate;
+                const tr = await fetch(totalUrl);
+                const td = await tr.json();
+                const totalMoney = (td.data && td.data.total) || td.income || 0;
+
+                const summary = document.getElementById('incomeSummary');
+                summary.innerHTML = '<div style="background:#ffffff;padding:12px 16px;border-radius:8px;font-size:0.85rem">共 <b style="color:#38bdf8">' + incomeTotal + '</b> 条记录</div>' +
+                    '<div style="background:#ffffff;padding:12px 16px;border-radius:8px;font-size:0.85rem">总金额: <b style="color:#4ade80">¥' + totalMoney.toLocaleString() + '</b></div>';
+
+                // 构建表格
+                const hotelName = HOTELS.find(h => h.id === hotelId)?.name || '全部';
+                const html = rows.map((r, i) => {
+                    return '<tr>' +
+                        '<td>' + ((incomePage-1)*20 + i + 1) + '</td>' +
+                        '<td class="name-cell">' + (r.merchantName || hotelName || '-') + '</td>' +
+                        '<td>' + (r.roomName || '-') + '</td>' +
+                        '<td class="name-cell">' + (r.gname || '-') + '</td>' +
+                        '<td>' + (r.businessTypeName || '-') + '</td>' +
+                        '<td style="font-size:0.75rem">' + (r.businessDetail || '-') + '</td>' +
+                        '<td class="money">¥' + (r.realMoney || 0).toLocaleString() + '</td>' +
+                        '<td style="font-size:0.75rem">' + (r.roomPriceCodeName || '-') + '</td>' +
+                        '<td style="font-size:0.75rem">' + (r.mediCodeName || '-') + '</td>' +
+                        '<td style="font-size:0.75rem">' + (r.roomOrderNo || '-') + '</td>' +
+                        '<td style="font-size:0.75rem;white-space:nowrap">' + (r.createTime || '-') + '</td>' +
+                        '<td>' + (r.createBy || '-') + '</td>' +
+                    '</tr>';
+                }).join('');
+                document.getElementById('incomeReportBody').innerHTML = html;
+
+                // 分页
+                const totalPages = Math.ceil(incomeTotal / 20);
+                const pagination = document.getElementById('incomePagination');
+                if (totalPages <= 1) {
+                    pagination.innerHTML = '';
+                } else {
+                    let phtml = '';
+                    if (incomePage > 1) phtml += '<button class="btn" onclick="fetchIncome(' + (incomePage-1) + ')">上一页</button>';
+                    phtml += '<span style="color:#94a3b8;line-height:32px;font-size:0.85rem">第 ' + incomePage + ' / ' + totalPages + ' 页</span>';
+                    if (incomePage < totalPages) phtml += '<button class="btn" onclick="fetchIncome(' + (incomePage+1) + ')">下一页</button>';
+                    pagination.innerHTML = phtml;
+                }
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            } catch(e) {
+                loading.textContent = '加载失败: ' + e.message;
+                console.error('收入报表错误:', e);
+            }
+        }
+
+        // 财务数据模块
+        function initFinancePage() {
+            const sel = document.getElementById('financeCampus');
+            if (sel.options.length <= 1) {
+                ['B座','C座','D座','小新公寓','力沃校区','嵘泰校区','塔利北校区','塔利南校区'].forEach(function(c) {
+                    sel.innerHTML += '<option value="' + c + '">' + c + '</option>';
+                });
+            }
+            // 默认本月
+            const now = new Date();
+            const start = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
+            const end = now.toISOString().split('T')[0];
+            if (!document.getElementById('financeStart').value) {
+                document.getElementById('financeStart').value = start;
+                document.getElementById('financeEnd').value = end;
+            }
+        }
+
+        async function fetchFinance() {
+            const campus = document.getElementById('financeCampus').value;
+            const type = document.getElementById('financeType').value;
+            const startDate = document.getElementById('financeStart').value;
+            const endDate = document.getElementById('financeEnd').value;
+            if (!startDate || !endDate) { alert('请选择日期范围'); return; }
+
+            const loading = document.getElementById('financeLoading');
+            const content = document.getElementById('financeContent');
+            loading.style.display = 'block';
+            loading.textContent = '查询中...';
+            content.style.display = 'none';
+
+            try {
+                let url = '/api/finance/query?type=' + type + '&start=' + startDate + '&end=' + endDate;
+                if (campus) url += '&company=' + encodeURIComponent(campus);
+                const r = await fetch(url);
+                const d = await r.json();
+                if (d.error) { loading.textContent = '查询失败: ' + d.error; return; }
+
+                const records = d.records || [];
+                const totalAmount = d.total_amount || 0;
+                const totalCount = d.total_count || 0;
+
+                const summary = document.getElementById('financeSummary');
+                summary.innerHTML =
+                    '<div style="background:#ffffff;padding:12px 16px;border-radius:8px;font-size:0.85rem">共 <b style="color:#38bdf8">' + totalCount + '</b> 条</div>' +
+                    '<div style="background:#ffffff;padding:12px 16px;border-radius:8px;font-size:0.85rem">合计: <b style="color:' + (type==='expenses' ? '#f87171' : '#4ade80') + '">¥' + totalAmount.toLocaleString() + '</b></div>';
+
+                // 动态表头
+                const headMap = {
+                    'expenses': ['日期','公司','校区','费用类型','金额','备注'],
+                    'income': ['日期','公司','校区','金额','来源','备注'],
+                    'assets': ['日期','公司','资产名称','数量','单价','总价','备注']
+                };
+                const heads = headMap[type] || headMap['expenses'];
+                const head = document.getElementById('financeHead');
+                head.innerHTML = heads.map(function(h){ return '<th>' + h + '</th>'; }).join('');
+
+                // 数据行
+                const body = document.getElementById('financeBody');
+                if (records.length === 0) {
+                    body.innerHTML = '<tr><td colspan="' + heads.length + '" style="color:#94a3b8">无数据</td></tr>';
+                } else {
+                    body.innerHTML = records.map(function(r) {
+                        if (type === 'expenses') {
+                            return '<tr>' +
+                                '<td style="white-space:nowrap">' + (r.date || '-') + '</td>' +
+                                '<td class="name-cell">' + (r.company || '-') + '</td>' +
+                                '<td>' + (r.campus || '-') + '</td>' +
+                                '<td>' + (r.expense_type || r.type || '-') + '</td>' +
+                                '<td class="number money">¥' + (r.amount || 0).toLocaleString() + '</td>' +
+                                '<td style="font-size:0.75rem;text-align:left">' + (r.remark || '-') + '</td>' +
+                            '</tr>';
+                        } else if (type === 'income') {
+                            return '<tr>' +
+                                '<td style="white-space:nowrap">' + (r.date || '-') + '</td>' +
+                                '<td class="name-cell">' + (r.company || '-') + '</td>' +
+                                '<td>' + (r.campus || '-') + '</td>' +
+                                '<td class="number money">¥' + (r.amount || 0).toLocaleString() + '</td>' +
+                                '<td>' + (r.source || '-') + '</td>' +
+                                '<td style="font-size:0.75rem;text-align:left">' + (r.remark || '-') + '</td>' +
+                            '</tr>';
+                        } else {
+                            return '<tr>' +
+                                '<td style="white-space:nowrap">' + (r.date || '-') + '</td>' +
+                                '<td class="name-cell">' + (r.company || '-') + '</td>' +
+                                '<td>' + (r.asset_name || '-') + '</td>' +
+                                '<td class="number">' + (r.quantity || '-') + '</td>' +
+                                '<td class="number">¥' + (r.unit_price || 0).toLocaleString() + '</td>' +
+                                '<td class="number money">¥' + (r.total_price || 0).toLocaleString() + '</td>' +
+                                '<td style="font-size:0.75rem;text-align:left">' + (r.remark || '-') + '</td>' +
+                            '</tr>';
+                        }
+                    }).join('');
+                }
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            } catch(e) {
+                loading.textContent = '加载失败: ' + e.message;
+                console.error('财务查询错误:', e);
+            }
+        }
+
+        // 检查登录状态
+        async function checkLogin() {
+            try {
+                const r = await fetch('/api/status');
+                const d = await r.json();
+                if (!d.logged_in) {
+                    window.location.href = '/ams_login.html';
+                    return;
+                }
+                document.querySelectorAll('.nav-item')[1].click();
+            } catch(e) {
+                // 网络异常时不跳转，默认进入系统（数据加载时会提示）
+                document.querySelectorAll('.nav-item')[1].click();
+            }
+        }
+
+        // 全局401拦截：任何API返回401/未登录，自动跳转扫码页
+        (function() {
+            var _fetch = window.fetch;
+            window.fetch = function(url, opts) {
+                return _fetch(url, opts).then(function(resp) {
+                    if (resp.status === 401 || resp.status === 403) {
+                        var cur = window.location.pathname;
+                        if (cur.indexOf('ams_login.html') < 0) {
+                            window.location.href = '/ams_login.html';
+                        }
+                    }
+                    return resp;
+                });
+            };
+        })();
+
+        // ========== 工资表 ==========
+        let payrollData = null; // 当前工资数据
+
+        function initPayrollPage() {
+            // 绑定文件选择事件（只绑一次）
+            const fileInput = document.getElementById('payrollFile');
+            if (fileInput && !fileInput._bound) {
+                fileInput._bound = true;
+                fileInput.addEventListener('change', handlePayrollFile);
+            }
+            // 从localStorage恢复绩效值
+            try {
+                const saved = JSON.parse(localStorage.getItem('ams_payroll_perf') || '{}');
+                const ph = document.getElementById('perfHotel');
+                const pn = document.getElementById('perfNew');
+                if (ph && saved.hotel !== undefined) ph.value = saved.hotel;
+                if (pn && saved.new !== undefined) pn.value = saved.new;
+            } catch(e) {}
+            // 绑定绩效输入保存
+            const ph2 = document.getElementById('perfHotel');
+            const pn2 = document.getElementById('perfNew');
+            if (ph2 && !ph2._bound) { ph2._bound = true; ph2.addEventListener('change', savePerfValues); }
+            if (pn2 && !pn2._bound) { pn2._bound = true; pn2.addEventListener('change', savePerfValues); }
+            // 如果已有数据，重新渲染（保持状态）
+            if (payrollData) {
+                renderPayrollTable();
+            }
+        }
+
+        // 保存绩效值到localStorage
+        function savePerfValues() {
+            try {
+                localStorage.setItem('ams_payroll_perf', JSON.stringify({
+                    hotel: (document.getElementById('perfHotel') || {}).value || 420,
+                    new: (document.getElementById('perfNew') || {}).value || 420
+                }));
+            } catch(e) {}
+            // 绩效变化后重算
+            if (payrollData) renderPayrollTable();
+        }
+
+        function handlePayrollFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const loading = document.getElementById('payrollLoading');
+            loading.style.display = 'block';
+            loading.textContent = '正在解析考勤表...';
+            document.getElementById('payrollFileName').textContent = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const b64 = ev.target.result.split(',')[1];
+                fetch('/api/payroll/parse', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({file_b64: b64})
+                }).then(r => r.json()).then(d => {
+                    if (d.code === 200) {
+                        payrollData = d.employees || [];
+                        renderPayrollTable();
+                        loading.style.display = 'none';
+                    } else {
+                        loading.textContent = '❌ ' + (d.msg || '解析失败');
+                    }
+                }).catch(err => {
+                    loading.textContent = '❌ 网络错误: ' + err;
+                });
+            };
+            reader.readAsDataURL(file);
+            e.target.value = ''; // 允许重复选同一文件
+        }
+
+        // 更新某员工的字段
+        function updatePayrollField(name, field, value) {
+            const emp = payrollData.find(x => x.name === name);
+            if (!emp) return;
+            const num = parseFloat(value);
+            if (isNaN(num)) return;
+            // 王怔鑫特殊：标准化/入住率输入框 → 合成on_duty_pay；满意度 → performance
+            if (emp.name === '王怔鑫') {
+                // 从页面读当前标准化和入住率输入框的值
+                const sec3 = document.getElementById('payrollHotelSec3');
+                const inputs = sec3 ? sec3.querySelectorAll('input') : [];
+                const curStd = inputs.length > 0 ? parseFloat(inputs[0].value) || 1500 : 1500;
+                const curOcc = inputs.length > 1 ? parseFloat(inputs[1].value) || 0 : 0;
+                if (field === 'std') {
+                    emp.on_duty_pay = num + curOcc;
+                } else if (field === 'occRate') {
+                    emp.on_duty_pay = curStd + num;
+                } else if (field === 'performance') {
+                    emp.performance = num;
+                }
+            } else {
+                emp[field] = num;
+                // 实时重算在岗工资和应发
+                if (field === 'attend_days') {
+                    emp.on_duty_pay = Math.round(emp.attend_days * emp.day_rate * 100) / 100;
+                }
+            }
+            renderPayrollTable();
+        }
+
+        // 王怔鑫的入住率（标准化1500，在岗工资=1500+入住率）
+        function occRateOf(emp) {
+            return Math.round(((emp.on_duty_pay || 2480) - 1500) * 100) / 100;
+        }
+
+        function calcTotalPay(emp) {
+            // 王怔鑫特殊：底薪 + 在岗工资(标准化+入住率) + 绩效(满意度)
+            if (emp.name === '王怔鑫') {
+                return Math.round((emp.base_salary + (emp.on_duty_pay||0) + (emp.performance||0)) * 100) / 100;
+            }
+            return Math.round((emp.base_salary + emp.on_duty_pay + (emp.performance||0) + (emp.subsidy||0) - (emp.deduction||0) + (emp.overtime||0)) * 100) / 100;
+        }
+
+        function renderPayrollTable() {
+            if (!payrollData || !payrollData.length) return;
+            const summary = document.getElementById('payrollSummary');
+            const content = document.getElementById('payrollContent');
+
+            // 汇总卡片
+            const totalPay = payrollData.reduce((s, e) => s + calcTotalPay(e), 0);
+            const totalPeople = payrollData.length;
+            summary.innerHTML =
+                '<div class="stat-card blue"><div class="stat-label">员工数</div><div class="stat-value">' + totalPeople + '</div></div>' +
+                '<div class="stat-card green"><div class="stat-label">工资总额</div><div class="stat-value">¥' + totalPay.toLocaleString() + '</div></div>';
+
+            // 人员分类：酒店发14人 / 新途径发8人；每类再分 员工段/组长段/主管段
+            const hotelNames = ['李静怡','丁一博','袁术飞','陈韬','贾敏','于洋','李瑞峰','李文臻','云欣悦','崔佳乐','高博'];
+            const hotelLeaders = ['杨苏元','柴浩凯'];
+            const hotelManager = ['王怔鑫'];
+            const newwayNames = ['史琴','杨澜','常洪瑄','姜亚鑫','景鹏飞','呼斯乐','闫瑾'];
+            const newwayLeaders = ['吴国飞'];
+
+            const perfHotel = parseFloat((document.getElementById('perfHotel') || {}).value) || 420;
+            const perfNew = parseFloat((document.getElementById('perfNew') || {}).value) || 420;
+
+            // 计算单人的绩效和应发
+            function perfOf(emp) {
+                if (emp.name === '王怔鑫') return emp.performance || 1000;
+                return (hotelNames.concat(hotelLeaders, hotelManager).indexOf(emp.name) >= 0) ? perfHotel : perfNew;
+            }
+            function totalOf(emp) {
+                emp.performance = perfOf(emp);
+                return calcTotalPay(emp);
+            }
+
+            // ===== 段1：普通员工表头（底薪/在岗天数/在岗工资/绩效/五险一金/补助/应发） =====
+            function sec1Html(emps, isHotel) {
+                let html = '<table><thead><tr>' +
+                    '<th>姓名</th><th>底薪</th><th>在岗天数</th><th>在岗工资</th><th>绩效</th><th>五险一金</th><th>补助</th><th>应发工资</th>' +
+                    '</tr></thead><tbody>';
+                emps.forEach(emp => {
+                    const total = totalOf(emp);
+                    html += '<tr>' +
+                        '<td class="name-cell">' + emp.name + '</td>' +
+                        '<td class="number">' + emp.base_salary + '</td>' +
+                        '<td><input type="number" step="0.5" value="' + emp.attend_days + '" onchange="updatePayrollField(\'' + emp.name + '\',\'attend_days\',this.value)" style="width:60px;padding:4px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.8rem;text-align:center"></td>' +
+                        '<td class="number">' + emp.on_duty_pay + '</td>' +
+                        '<td class="number">' + emp.performance + '</td>' +
+                        '<td class="number" style="font-size:0.7rem;color:#94a3b8">6个月后交</td>' +
+                        '<td class="number">' + (emp.subsidy||0) + '</td>' +
+                        '<td class="money" style="font-weight:700">¥' + total.toLocaleString() + '</td>' +
+                        '</tr>';
+                });
+                const sub = emps.reduce((s,e) => s + totalOf(e), 0);
+                html += '<tr class="total-row"><td colspan="7">小计</td><td class="money">¥' + sub.toLocaleString() + '</td></tr>';
+                html += '</tbody></table>';
+                return html;
+            }
+
+            // ===== 段2：组长表头（基本工资/出勤天数/在岗工资/绩效/加班补助/管理工资/应发） =====
+            function sec2Html(emps, isHotel) {
+                let html = '<table><thead><tr>' +
+                    '<th>姓名</th><th>基本工资</th><th>出勤天数</th><th>在岗工资</th><th>绩效</th><th>加班补助</th><th>管理工资</th><th>应发工资</th>' +
+                    '</tr></thead><tbody>';
+                emps.forEach(emp => {
+                    const total = totalOf(emp);
+                    html += '<tr>' +
+                        '<td class="name-cell">' + emp.name + '</td>' +
+                        '<td class="number">' + emp.base_salary + '</td>' +
+                        '<td class="number">' + emp.attend_days + '</td>' +
+                        '<td class="number">' + emp.on_duty_pay + '</td>' +
+                        '<td class="number">' + emp.performance + '</td>' +
+                        '<td class="number">0</td>' +
+                        '<td class="number">' + (emp.subsidy||0) + '</td>' +
+                        '<td class="money" style="font-weight:700">¥' + total.toLocaleString() + '</td>' +
+                        '</tr>';
+                });
+                const sub = emps.reduce((s,e) => s + totalOf(e), 0);
+                html += '<tr class="total-row"><td colspan="7">小计</td><td class="money">¥' + sub.toLocaleString() + '</td></tr>';
+                html += '</tbody></table>';
+                return html;
+            }
+
+            // ===== 段3：主管表头（基本工资/标准化/当月入住率/学生满意度/加班补助/管理工资/应发） =====
+            function sec3Html(emps) {
+                let html = '<table><thead><tr>' +
+                    '<th>姓名</th><th>基本工资</th><th>标准化</th><th>当月入住率</th><th>学生满意度</th><th>加班补助</th><th>管理工资</th><th>应发工资</th>' +
+                    '</tr></thead><tbody>';
+                emps.forEach(emp => {
+                    const total = totalOf(emp);
+                    // 王怔鑫：在岗工资=标准化1500+入住率，绩效=满意度
+                    const std = 1500;
+                    const occRate = Math.round(((emp.on_duty_pay||2480) - std) * 100) / 100;
+                    const satisfaction = emp.performance || 1000;
+                    html += '<tr>' +
+                        '<td class="name-cell">' + emp.name + '</td>' +
+                        '<td class="number">' + emp.base_salary + '</td>' +
+                        '<td><input type="number" value="' + std + '" onchange="updatePayrollField(\'' + emp.name + '\',\'std\',this.value)" style="width:60px;padding:4px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.8rem;text-align:center"></td>' +
+                        '<td><input type="number" value="' + occRate + '" onchange="updatePayrollField(\'' + emp.name + '\',\'occRate\',this.value)" style="width:60px;padding:4px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.8rem;text-align:center"></td>' +
+                        '<td><input type="number" value="' + satisfaction + '" onchange="updatePayrollField(\'' + emp.name + '\',\'performance\',this.value)" style="width:60px;padding:4px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.8rem;text-align:center"></td>' +
+                        '<td class="number">0</td>' +
+                        '<td class="number">0</td>' +
+                        '<td class="money" style="font-weight:700">¥' + total.toLocaleString() + '</td>' +
+                        '</tr>';
+                });
+                const sub = emps.reduce((s,e) => s + totalOf(e), 0);
+                html += '<tr class="total-row"><td colspan="7">小计</td><td class="money">¥' + sub.toLocaleString() + '</td></tr>';
+                html += '</tbody></table>';
+                return html;
+            }
+
+            // 渲染酒店发
+            const h1 = payrollData.filter(e => hotelNames.indexOf(e.name) >= 0);
+            const h2 = payrollData.filter(e => hotelLeaders.indexOf(e.name) >= 0);
+            const h3 = payrollData.filter(e => hotelManager.indexOf(e.name) >= 0);
+            document.getElementById('payrollHotelSec1').innerHTML = sec1Html(h1, true);
+            document.getElementById('payrollHotelSec2').innerHTML = h2.length ? sec2Html(h2, true) : '';
+            document.getElementById('payrollHotelSec3').innerHTML = h3.length ? sec3Html(h3) : '';
+
+            // 渲染新途径发
+            const n1 = payrollData.filter(e => newwayNames.indexOf(e.name) >= 0);
+            const n2 = payrollData.filter(e => newwayLeaders.indexOf(e.name) >= 0);
+            document.getElementById('payrollNewSec1').innerHTML = sec1Html(n1, false);
+            document.getElementById('payrollNewSec2').innerHTML = n2.length ? sec2Html(n2, false) : '';
+            document.getElementById('payrollNewSec3').innerHTML = '';
+
+            content.style.display = 'block';
+            document.getElementById('payrollLoading').style.display = 'none';
+        }
+
+        function exportPayroll(type) {
+            if (!payrollData || !payrollData.length) {
+                alert('请先导入考勤表');
+                return;
+            }
+            const btn = event && event.currentTarget;
+            const origText = btn ? btn.textContent : '';
+            if (btn) { btn.textContent = '⏳ 生成中...'; btn.disabled = true; }
+            fetch('/api/payroll/export', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    employees: payrollData,
+                    perf_hotel: (document.getElementById('perfHotel') || {}).value || 420,
+                    perf_new: (document.getElementById('perfNew') || {}).value || 420,
+                    export_type: type || 'all'
+                })
+            }).then(r => r.json()).then(d => {
+                if (d.code === 200) {
+                    // 导出类型：单个文件或两个文件
+                    if (d.files && d.files.length) {
+                        d.files.forEach(f => {
+                            const a = document.createElement('a');
+                            a.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + f.file_b64;
+                            a.download = f.filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        });
+                    } else if (d.file_b64) {
+                        const a = document.createElement('a');
+                        a.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + d.file_b64;
+                        a.download = d.filename || '上岸公寓工资表.xlsx';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    }
+                } else {
+                    alert('导出失败: ' + (d.msg || '未知错误'));
+                }
+            }).catch(err => alert('导出失败: ' + err)).finally(() => {
+                if (btn) { btn.textContent = origText; btn.disabled = false; }
+            });
+        }
+
+        // ========== 布草管理 ==========
+        const LINEN_ITEMS = ['床笠','枕套','被套','护垫','床帘','被芯','枕芯'];
+        const LINEN_OPTS = ['运走','运回','破损','返工'];
+
+        function initLinenPage() {
+            // 默认日期今天
+            const d = document.getElementById('linenDate');
+            if (d && !d.value) d.value = new Date().toISOString().split('T')[0];
+            const m = document.getElementById('linenMonth');
+            if (m && !m.value) m.value = new Date().toISOString().slice(0, 7);
+            linenRenderInput();
+            linenLoadInventory();
+            linenLoadRecords();
+        }
+
+        // 渲染录入表格（带当前库存提示）
+        function linenRenderInput() {
+            const campus = document.getElementById('linenCampus').value;
+            const body = document.getElementById('linenInputBody');
+            let html = '';
+            LINEN_ITEMS.forEach(item => {
+                html += '<tr><td class="name-cell">' + item + '</td>' +
+                    '<td><input type="number" min="0" id="linen_in_' + item + '" style="width:70px;padding:5px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.85rem;text-align:center"></td>' +
+                    '<td><input type="number" min="0" id="linen_back_' + item + '" style="width:70px;padding:5px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.85rem;text-align:center"></td>' +
+                    '<td><input type="number" min="0" id="linen_broken_' + item + '" style="width:70px;padding:5px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.85rem;text-align:center"></td>' +
+                    '<td><input type="number" min="0" id="linen_rework_' + item + '" style="width:70px;padding:5px;border-radius:6px;border:1px solid #334155;background:#f2f3f5;color:#e2e8f0;font-size:0.85rem;text-align:center"></td>' +
+                    '<td id="linen_stock_' + item + '" style="color:#94a3b8;font-size:0.8rem">-</td></tr>';
+            });
+            body.innerHTML = html;
+            // 加载当前库存显示
+            fetch('/api/linen/inventory?campus=' + encodeURIComponent(campus)).then(r => r.json()).then(d => {
+                if (d.code !== 200) return;
+                d.records.forEach(r => {
+                    const el = document.getElementById('linen_stock_' + r.item);
+                    if (el) el.textContent = r.stock;
+                });
+            }).catch(() => {});
+        }
+
+        // 保存录入
+        function linenAdd() {
+            const date = document.getElementById('linenDate').value;
+            const campus = document.getElementById('linenCampus').value;
+            if (!date) { alert('请选择日期'); return; }
+            const items = {};
+            LINEN_ITEMS.forEach(item => {
+                const ops = {};
+                ops['运走'] = parseInt(document.getElementById('linen_in_' + item).value) || 0;
+                ops['运回'] = parseInt(document.getElementById('linen_back_' + item).value) || 0;
+                ops['破损'] = parseInt(document.getElementById('linen_broken_' + item).value) || 0;
+                ops['返工'] = parseInt(document.getElementById('linen_rework_' + item).value) || 0;
+                if (Object.values(ops).some(v => v > 0)) items[item] = ops;
+            });
+            if (Object.keys(items).length === 0) { alert('请填写至少一个数量'); return; }
+
+            fetch('/api/linen/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({date, campus, items})
+            }).then(r => r.json()).then(d => {
+                const msg = document.getElementById('linenMsg');
+                if (d.code === 200) {
+                    if (d.warnings && d.warnings.length) {
+                        msg.innerHTML = '<span style="color:#f87171">⚠️ ' + d.warnings.join('；') + '</span>';
+                    } else {
+                        msg.innerHTML = '<span style="color:#4ade80">✅ 已保存 ' + d.inserted + ' 条</span>';
+                    }
+                    // 清空输入框
+                    LINEN_ITEMS.forEach(item => {
+                        document.getElementById('linen_in_' + item).value = '';
+                        document.getElementById('linen_back_' + item).value = '';
+                        document.getElementById('linen_broken_' + item).value = '';
+                        document.getElementById('linen_rework_' + item).value = '';
+                    });
+                    linenRenderInput();
+                    linenLoadInventory();
+                    linenLoadRecords();
+                } else {
+                    msg.innerHTML = '<span style="color:#f87171">❌ ' + d.msg + '</span>';
+                }
+            }).catch(e => {
+                document.getElementById('linenMsg').innerHTML = '<span style="color:#f87171">❌ ' + e + '</span>';
+            });
+        }
+
+        // 初始库存（统一录入弹窗）
+        function linenInitInventory() {
+            const campus = document.getElementById('linenCampus').value;
+            let input = '设置 ' + campus + ' 初始库存（当前各物品库存，仅首次使用填写）：\n';
+            LINEN_ITEMS.forEach(item => {
+                input += '\n' + item + ': ';
+            });
+            const val = prompt(input);
+            if (val === null) return;
+            const vals = val.trim().split(/[\s,，]+/);
+            if (vals.length !== LINEN_ITEMS.length) { alert('数量不对，需填 ' + LINEN_ITEMS.length + ' 个数'); return; }
+            const payload = {};
+            payload[campus] = {};
+            LINEN_ITEMS.forEach((item, i) => { payload[campus][item] = parseInt(vals[i]) || 0; });
+            fetch('/api/linen/init_inventory', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            }).then(r => r.json()).then(d => {
+                alert(d.msg || '已保存');
+                linenLoadInventory();
+                linenRenderInput();
+            }).catch(e => alert('失败: ' + e));
+        }
+
+        // 库存汇总
+        function linenLoadInventory() {
+            const body = document.getElementById('linenInvBody');
+            fetch('/api/linen/inventory').then(r => r.json()).then(d => {
+                if (d.code !== 200) { body.innerHTML = '<tr><td colspan="7" style="color:#f87171">' + d.msg + '</td></tr>'; return; }
+                let html = '';
+                d.records.forEach(r => {
+                    const low = r.stock < 10 ? ' style="color:#f87171"' : '';
+                    html += '<tr><td class="name-cell">' + r.campus + '</td><td>' + r.item + '</td>' +
+                        '<td class="number">' + r.initial_qty + '</td><td class="number">' + r.back_qty + '</td>' +
+                        '<td class="number">' + r.out_qty + '</td><td class="number">' + r.broken_qty + '</td>' +
+                        '<td class="number"' + low + '><b>' + r.stock + '</b></td></tr>';
+                });
+                body.innerHTML = html;
+            }).catch(e => body.innerHTML = '<tr><td colspan="7" style="color:#f87171">' + e + '</td></tr>');
+        }
+
+        // 月度对账
+        function linenSummary() {
+            const month = document.getElementById('linenMonth').value;
+            const body = document.getElementById('linenSumBody');
+            if (!month) { alert('请选择月份'); return; }
+            fetch('/api/linen/summary?month=' + month).then(r => r.json()).then(d => {
+                if (d.code !== 200) { body.innerHTML = '<tr><td colspan="7" style="color:#f87171">' + d.msg + '</td></tr>'; return; }
+                // 按 校区×物品 聚合
+                const map = {};
+                d.records.forEach(r => {
+                    const key = r.campus + '|' + r.item;
+                    if (!map[key]) map[key] = {campus: r.campus, item: r.item, 运走: 0, 运回: 0, 破损: 0, 返工: 0, amount: 0};
+                    map[key][r.op_type] = r.total;
+                    if (r.op_type === '破损' && r.amount) map[key].amount = r.amount;
+                });
+                let html = '';
+                let totalAmount = 0;
+                Object.values(map).forEach(m => {
+                    totalAmount += m.amount;
+                    html += '<tr><td class="name-cell">' + m.campus + '</td><td>' + m.item + '</td>' +
+                        '<td class="number">' + m['运走'] + '</td><td class="number">' + m['运回'] + '</td>' +
+                        '<td class="number">' + m['破损'] + '</td><td class="number">' + m['返工'] + '</td>' +
+                        '<td class="number money">¥' + m.amount.toFixed(2) + '</td></tr>';
+                });
+                html += '<tr class="total-row"><td colspan="6">破损赔偿合计</td><td class="money">¥' + totalAmount.toFixed(2) + '</td></tr>';
+                body.innerHTML = html;
+            }).catch(e => body.innerHTML = '<tr><td colspan="7" style="color:#f87171">' + e + '</td></tr>');
+        }
+
+        // 台账记录
+        function linenLoadRecords() {
+            const body = document.getElementById('linenRecBody');
+            fetch('/api/linen/records').then(r => r.json()).then(d => {
+                if (d.code !== 200) { body.innerHTML = '<tr><td colspan="6" style="color:#f87171">' + d.msg + '</td></tr>'; return; }
+                const rows = d.records || [];
+                if (!rows.length) { body.innerHTML = '<tr><td colspan="6" style="color:#94a3b8">暂无记录</td></tr>'; return; }
+                let html = '';
+                rows.forEach(r => {
+                    const color = r.op_type === '运走' ? '#38bdf8' : r.op_type === '运回' ? '#4ade80' : r.op_type === '破损' ? '#f87171' : '#fbbf24';
+                    html += '<tr><td style="white-space:nowrap">' + r.record_date + '</td><td class="name-cell">' + r.campus + '</td>' +
+                        '<td>' + r.item + '</td><td style="color:' + color + '">' + r.op_type + '</td>' +
+                        '<td class="number">' + r.quantity + '</td><td>' + (r.remark || '-') + '</td></tr>';
+                });
+                body.innerHTML = html;
+            }).catch(e => body.innerHTML = '<tr><td colspan="6" style="color:#f87171">' + e + '</td></tr>');
+        }
+
+        // ========== 包住信息对比 ==========
+        let boardPage = 1;
+        async function fetchBoard() {
+            const filter = document.getElementById('boardFilter').value;
+            const excludeZt = document.getElementById('boardExcludeZt').checked ? '1' : '0';
+            const excludeNoAms = document.getElementById('boardExcludeNoAms').checked ? '1' : '0';
+            const startMonth = document.getElementById('boardStartMonth').value;
+            const endMonth = document.getElementById('boardEndMonth').value;
+            const loading = document.getElementById('boardLoading');
+            const content = document.getElementById('boardContent');
+            loading.style.display = 'block';
+            loading.textContent = '⏳ 加载中...';
+            loading.style.color = '';
+            content.style.display = 'none';
+            try {
+                const r = await fetch('/api/board/compare?filter=' + filter + '&page=' + boardPage + '&pageSize=50&exclude_zt=' + excludeZt + '&exclude_no_ams=' + excludeNoAms + '&start_month=' + startMonth + '&end_month=' + endMonth);
+                const d = await r.json();
+                if (d.code !== 200) { loading.textContent = '❌ 加载失败: ' + (d.msg || '') + '  [🔄 重试]'; loading.style.color = '#f87171'; loading.style.cursor = 'pointer'; loading.onclick = fetchBoard; return; }
+                loading.onclick = null;
+
+                // 汇总卡片（按人统计，分类之和=对方人数）
+                const s = d.summary || {};
+                const summary = document.getElementById('boardSummary');
+                const cards = [
+                    ['AMS条数', s.ams_rows || 0, '#38bdf8'],
+                    ['对方条数', s.other_rows || 0, '#4ade80'],
+                    ['一致', s.match || 0, '#34d399'],
+                    ['不一致', s.diff || 0, '#f87171'],
+                    ['金额差异(对方多)', s.amt_diff || 0, '#f59e0b'],
+                    ['仅对方有', s.only_other || 0, '#a78bfa'],
+                    ['文字天数', s.text_days || 0, '#fbbf24'],
+                    ['直通班', s.zt_count || 0, '#94a3b8'],
+                ];
+                summary.innerHTML = cards.map(c =>
+                    '<div class="board-card">' +
+                    '<div class="board-card-label">' + c[0] + '</div>' +
+                    '<div class="board-card-value" style="color:' + c[2] + '">' + c[1] + '</div></div>'
+                ).join('');
+
+                // 表格
+                const rows = d.rows || [];
+                document.getElementById('boardCount').textContent = '共 ' + (d.total || 0) + ' 条';
+                const html = rows.map((r, i) => {
+                    const diff = r.diff_days;
+                    // 状态：图标+文字（不只颜色，色盲友好）
+                    let color = '#94a3b8';
+                    let icon = '·';
+                    if (r.status === '不一致') { color = '#f87171'; icon = '✗'; }
+                    else if (r.status === '仅AMS有') { color = '#fbbf24'; icon = '⚠'; }
+                    else if (r.status === '仅对方有') { color = '#a78bfa'; icon = '⚠'; }
+                    else if (r.status === '金额差异(对方多)') { color = '#f59e0b'; icon = '¥'; }
+                    else if (r.status === '文字天数') { color = '#a78bfa'; icon = '📝'; }
+                    else { color = '#4ade80'; icon = '✓'; }
+                    const sign = diff > 0 ? '+' + diff : diff;
+                    // 金额差 = 对方-AMS（和导出一致）
+                    const amtDiffVal = Math.round((r.other_amt || 0) - (r.ams_amt || 0));
+                    const amtDiffShow = (amtDiffVal === 0) ? '¥0' : (amtDiffVal > 0 ? '+¥' + amtDiffVal.toLocaleString() : '-¥' + Math.abs(amtDiffVal).toLocaleString());
+                    const amtDiffColor = amtDiffVal > 0 ? '#f59e0b' : (amtDiffVal < 0 ? '#f87171' : '#94a3b8');
+                    // 对方天数：直通班显示文字，文字天数显示days_text
+                    let otherDaysDisplay = r.other_days;
+                    if (r.other_zt === 1) otherDaysDisplay = '直通班';
+                    else if (r.status === '文字天数' && r.days_text) otherDaysDisplay = r.days_text;
+                    // 跨月展开：分月多行 + 合计行
+                    const months = (r.months || []).filter(m => m[2] > 0);
+                    const isMulti = months.length > 1;
+                    const idx = (boardPage-1)*50 + i + 1;
+                    let rowHtml = '';
+                    if (isMulti) {
+                        // 分月行（每人各月）
+                        months.forEach(m => {
+                            const mDays = m[2];
+                            const mAmt = (m[1] && m[1].indexOf('小新') >= 0) ? 0 : mDays * 25;
+                            rowHtml += '<tr style="opacity:0.8">' +
+                                '<td>' + idx + '</td>' +
+                                '<td class="name-cell">' + (r.name || '-') + '</td>' +
+                                '<td>' + (m[1] || '').replace('上岸公寓','').replace('校区','') + '</td>' +
+                                '<td class="number" style="color:#86909c;font-size:0.75rem">' + (m[0] || '').slice(5) + '月</td>' +
+                                '<td class="number">' + mDays + '</td>' +
+                                '<td class="number"></td>' +
+                                '<td class="number"></td>' +
+                                '<td class="number money">¥' + Math.round(mAmt).toLocaleString() + '</td>' +
+                                '<td class="number money"></td>' +
+                                '<td class="number"></td>' +
+                                '<td></td><td></td>' +
+                                '</tr>';
+                        });
+                        // 合计行（高亮）
+                        rowHtml += '<tr style="background:rgba(51,112,255,0.08);font-weight:700">' +
+                            '<td>' + idx + '</td>' +
+                            '<td class="name-cell">' + (r.name || '-') + '</td>' +
+                            '<td>' + (r.campus || '-').replace('上岸公寓','').replace('校区','') + '</td>' +
+                            '<td class="number" style="color:#3370ff">合计</td>' +
+                            '<td class="number" style="color:#3370ff">' + r.ams_days + '</td>' +
+                            '<td class="number" style="color:' + color + '">' + sign + '</td>' +
+                            '<td class="number" style="color:' + color + '">' + otherDaysDisplay + '</td>' +
+                            '<td class="number money">¥' + Math.round(r.ams_amt || 0).toLocaleString() + '</td>' +
+                            '<td class="number money">¥' + Math.round(r.other_amt || 0).toLocaleString() + '</td>' +
+                            '<td class="number" style="color:' + amtDiffColor + '">' + amtDiffShow + '</td>' +
+                            '<td><span style="color:' + color + '">' + icon + ' ' + r.status + '</span></td>' +
+                            '<td><button class="btn" style="padding:6px 14px;font-size:0.8rem;min-height:36px" onclick="showBoardMonthly(\'' + r.cert + '\')">📅 明细</button></td>' +
+                            '</tr>';
+                    } else {
+                        // 单月：正常1行
+                        rowHtml = '<tr>' +
+                            '<td>' + idx + '</td>' +
+                            '<td class="name-cell">' + (r.name || '-') + '</td>' +
+                            '<td>' + (r.campus || '-').replace('上岸公寓','').replace('校区','') + '</td>' +
+                            '<td class="number"></td>' +
+                            '<td class="number">' + r.ams_days + '</td>' +
+                            '<td class="number">' + otherDaysDisplay + '</td>' +
+                            '<td class="number" style="color:' + color + '">' + sign + '</td>' +
+                            '<td class="number money">¥' + Math.round(r.ams_amt || 0).toLocaleString() + '</td>' +
+                            '<td class="number money">¥' + Math.round(r.other_amt || 0).toLocaleString() + '</td>' +
+                            '<td class="number" style="color:' + amtDiffColor + '">' + amtDiffShow + '</td>' +
+                            '<td><span style="color:' + color + '">' + icon + ' ' + r.status + '</span></td>' +
+                            '<td><button class="btn" style="padding:6px 14px;font-size:0.8rem;min-height:36px" onclick="showBoardMonthly(\'' + r.cert + '\')">📅 明细</button></td>' +
+                            '</tr>';
+                    }
+                    return rowHtml;
+                }).join('');
+                document.getElementById('boardBody').innerHTML = html;
+
+                // 分页
+                const totalPages = Math.ceil((d.total || 0) / 50);
+                const pag = document.getElementById('boardPagination');
+                if (totalPages <= 1) pag.innerHTML = '';
+                else {
+                    let ph = '';
+                    if (boardPage > 1) ph += '<button class="btn" onclick="boardPage--;fetchBoard()">上一页</button>';
+                    ph += '<span style="color:#94a3b8;line-height:32px">第 ' + boardPage + ' / ' + totalPages + ' 页</span>';
+                    if (boardPage < totalPages) ph += '<button class="btn" onclick="boardPage++;fetchBoard()">下一页</button>';
+                    pag.innerHTML = ph;
+                }
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            } catch(e) {
+                loading.textContent = '加载失败: ' + e.message;
+            }
+        }
+
+        // 导出Excel（按当前筛选条件）
+        async function exportBoard() {
+            const excludeZt = document.getElementById('boardExcludeZt').checked ? '1' : '0';
+            const excludeNoAms = document.getElementById('boardExcludeNoAms').checked ? '1' : '0';
+            const startMonth = document.getElementById('boardStartMonth').value;
+            const endMonth = document.getElementById('boardEndMonth').value;
+            const url = '/api/board/export?exclude_zt=' + excludeZt + '&exclude_no_ams=' + excludeNoAms + '&start_month=' + startMonth + '&end_month=' + endMonth;
+            try {
+                const r = await fetch(url);
+                const blob = await r.blob();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = '包住对比_' + new Date().toISOString().slice(0,10) + '.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            } catch(e) {
+                alert('导出失败: ' + e.message);
+            }
+        }
+
+        // 导入对方Excel
+        async function importBoardExcel(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const r = await fetch('/api/board/import', { method: 'POST', body: formData });
+                const d = await r.json();
+                if (d.code === 200) {
+                    alert('✅ ' + d.msg);
+                    boardPage = 1;
+                    fetchBoard();
+                } else {
+                    alert('❌ ' + (d.msg || '导入失败'));
+                }
+            } catch(e) {
+                alert('❌ 导入失败: ' + e.message);
+            }
+            input.value = '';
+        }
+
+        // 查看某人分月明细
+        async function showBoardMonthly(cert) {
+            try {
+                const r = await fetch('/api/board/monthly?cert=' + cert);
+                const d = await r.json();
+                if (d.code !== 200) { alert('查询失败'); return; }
+                const records = d.records || [];
+                let msg = records.map(x => x.month + ': ' + x.ams_days + '天').join('\n');
+                alert('AMS分月明细:\n' + (msg || '无记录'));
+            } catch(e) { alert('查询失败: ' + e.message); }
+        }
+
+        window.onload = function() {
+            updateTopbar('summary');
+            updateTopbarClock();
+            checkLogin();
+        };
+        setInterval(updateTopbarClock, 30000);
+    </script>
+</body>
+</html>

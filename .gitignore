@@ -1,0 +1,16 @@
+﻿# 数据库（含全部收入流水与敏感信息，222MB，不入库）
+finance.db
+
+# 登录凭证与运行时文件
+cache/
+logs/
+.workbench.pid
+__pycache__/
+*.pyc
+
+# 系统文件
+Thumbs.db
+Desktop.ini
+
+# 数据库备份
+finance.db.*

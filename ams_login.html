@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工作台登录</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Microsoft YaHei", Arial, sans-serif; background: #eef2f7; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .card { background: #fff; border-radius: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.12); width: 380px; padding: 34px 32px 26px; }
+  h1 { font-size: 20px; text-align: center; margin: 0 0 4px; color: #1f2d3d; }
+  .sub { text-align: center; color: #98a2b3; font-size: 13px; margin-bottom: 22px; }
+  .tabs { display: flex; margin-bottom: 22px; border-bottom: 1px solid #eef1f5; }
+  .tab { flex: 1; text-align: center; padding: 10px 0; cursor: pointer; color: #6b7785; border-bottom: 2px solid transparent; user-select: none; }
+  .tab.active { color: #1a73e8; border-bottom-color: #1a73e8; font-weight: 600; }
+  .qr-box { text-align: center; }
+  #qrImg { width: 216px; height: 216px; border: 1px solid #eef1f5; border-radius: 10px; background: #fafbfc; object-fit: contain; }
+  #qrStatus { margin: 14px 0 4px; font-size: 14px; color: #5a6674; min-height: 20px; }
+  .btn { width: 100%; padding: 11px; background: #1a73e8; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; margin-top: 12px; }
+  .btn:hover { background: #1667d9; }
+  .btn.plain { background: #fff; color: #1a73e8; border: 1px solid #cfe0fb; }
+  .btn.plain:hover { background: #f2f7ff; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 13px; color: #667085; margin-bottom: 6px; }
+  .field input { width: 100%; padding: 10px 12px; border: 1px solid #dde3ea; border-radius: 8px; font-size: 14px; outline: none; }
+  .field input:focus { border-color: #1a73e8; }
+  #msg { margin-top: 14px; font-size: 14px; text-align: center; min-height: 20px; }
+  .err { color: #e5484d; }
+  .ok { color: #30a46c; }
+  .link { text-align: center; margin-top: 18px; font-size: 12px; color: #aab3c0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>公寓管理系统工作台</h1>
+  <div class="sub">请登录后使用系统</div>
+
+  <div class="tabs">
+    <div class="tab active" id="tabQr" onclick="switchTab(1)">扫码登录</div>
+    <div class="tab" id="tabPwd" onclick="switchTab(2)">账号登录</div>
+  </div>
+
+  <div id="panelQr">
+    <div class="qr-box">
+      <img id="qrImg" alt="二维码" src="">
+      <div id="qrStatus">正在生成二维码...</div>
+    </div>
+    <button class="btn plain" onclick="loadQr()">刷新二维码</button>
+  </div>
+
+  <div id="panelPwd" style="display:none">
+    <div class="field"><label>账号</label><input id="loginUser" placeholder="请输入账号" autocomplete="username"></div>
+    <div class="field"><label>密码</label><input id="loginPass" type="password" placeholder="请输入密码" autocomplete="current-password"></div>
+    <button class="btn" onclick="doPwdLogin()">登 录</button>
+  </div>
+
+  <div id="msg"></div>
+  <div class="link">首次使用请用管理员账号登录，或用微信扫码</div>
+</div>
+
+<script>
+var qrUuid = null;
+var qrTimer = null;
+var captchaUuid = null;
+var captchaEnabled = false;
+
+function showMsg(text, ok) {
+  var m = document.getElementById('msg');
+  m.textContent = text || '';
+  m.className = ok ? 'ok' : 'err';
+}
+
+function switchTab(n) {
+  document.getElementById('tabQr').className = n === 1 ? 'tab active' : 'tab';
+  document.getElementById('tabPwd').className = n === 2 ? 'tab active' : 'tab';
+  document.getElementById('panelQr').style.display = n === 1 ? 'block' : 'none';
+  document.getElementById('panelPwd').style.display = n === 2 ? 'block' : 'none';
+  showMsg('');
+  if (n === 1) loadQr();
+}
+
+function loadQr() {
+  clearInterval(qrTimer);
+  var st = document.getElementById('qrStatus');
+  st.textContent = '正在生成二维码...';
+  fetch('/qr-login').then(function(r) { return r.json(); }).then(function(d) {
+    if (d.code !== 200 || !d.data || !d.data.imageUrl) {
+      st.textContent = '二维码生成失败: ' + (d.msg || '未知错误');
+      return;
+    }
+    qrUuid = d.data.token || d.data.scene;
+    document.getElementById('qrImg').src = d.data.imageUrl;
+    st.textContent = '请使用微信扫描二维码';
+    qrTimer = setInterval(checkQr, 2000);
+  }).catch(function() {
+    st.textContent = '网络错误，请确认服务已启动';
+  });
+}
+
+function checkQr() {
+  if (!qrUuid) return;
+  fetch('/qr-status?uuid=' + encodeURIComponent(qrUuid)).then(function(r) { return r.json(); }).then(function(d) {
+    var s = d.data ? d.data.status : 0;
+    var st = document.getElementById('qrStatus');
+    if (s === 1) {
+      st.textContent = '已扫码，请在手机上确认登录';
+    } else if (s === 2 || (d.data && d.data.confirmTime)) {
+      st.textContent = '确认成功，正在登录...';
+      clearInterval(qrTimer);
+      fetch('/qr-auth/' + encodeURIComponent(qrUuid)).then(function(r) { return r.json(); }).then(function(a) {
+        if (a.token || a.code === 200) {
+          window.location.href = '/';
+        } else {
+          showMsg('登录失败: ' + (a.msg || '未知错误'));
+          loadQr();
+        }
+      }).catch(function() { showMsg('登录失败，请重试'); loadQr(); });
+    }
+  }).catch(function() {});
+}
+
+function doPwdLogin() {
+  var u = document.getElementById('loginUser').value.trim();
+  var p = document.getElementById('loginPass').value.trim();
+  if (!u || !p) { showMsg('请填写账号和密码'); return; }
+  var body = { username: u, password: p };
+  fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.code === 200) {
+      showMsg('登录成功，正在进入系统...', true);
+      setTimeout(function() { window.location.href = '/'; }, 600);
+    } else {
+      showMsg('登录失败: ' + (d.msg || '未知错误'));
+    }
+  }).catch(function() { showMsg('登录失败，请重试'); });
+}
+
+loadQr();
+</script>
+</body>
+</html>
