@@ -440,7 +440,7 @@
         <div class="nav-item" onclick="showPage('payroll', event)"><span class="nav-icon">💰</span>工资表</div>
         <div class="nav-item" onclick="showPage('linen', event)"><span class="nav-icon">🧺</span>布草管理</div>
         <div class="nav-item" onclick="showPage('board', event)"><span class="nav-icon">🛏️</span>包住对比</div>
-        <div class="nav-item" onclick="showPage('test', event)"><span class="nav-icon">??</span>????</div>
+        <div class="nav-item" onclick="showPage('test', event)"><span class="nav-icon">🧪</span>测试模块</div>
         <div class="sidebar-footer"><strong>工作台 v2.0</strong>数据每 5 分钟自动缓存</div>
     </div>
 
@@ -990,12 +990,12 @@
                 </select>
                 <span id="boardCount" style="color:#94a3b8;font-size:0.85rem"></span>
 
-        <!-- ????? -->
+        <!-- 测试模块页 -->
         <div id="test-page" class="page">
-            <h1>?? ????</h1>
-            <div class="page-sub">?????????GitHub??+?????</div>
-            <button class="btn btn-primary" onclick="fetchTest()" style="margin-bottom:16px">?? ????</button>
-            <div id="testLoading" class="loading">??????...</div>
+            <h1>🧪 测试模块</h1>
+            <div class="page-sub">协作开发测试：验证GitHub同步+前后端联通</div>
+            <button class="btn btn-primary" onclick="fetchTest()" style="margin-bottom:16px">🔄 测试连接</button>
+            <div id="testLoading" class="loading">点击按钮测试...</div>
             <div id="testResult" style="display:none">
                 <div id="testCards" class="stat-cards" style="margin-bottom:16px"></div>
                 <div id="testTables" class="card" style="padding:16px"></div>
@@ -2935,21 +2935,21 @@
             const loading = document.getElementById('testLoading');
             const result = document.getElementById('testResult');
             loading.style.display = 'block';
-            loading.textContent = '? ???...';
+            loading.textContent = '⏳ 测试中...';
             result.style.display = 'none';
             try {
                 const r = await fetch('/api/test');
                 const d = await r.json();
-                if (d.code !== 200) { loading.textContent = '? ??: ' + (d.msg || ''); return; }
+                if (d.code !== 200) { loading.textContent = '❌ 失败: ' + (d.msg || ''); return; }
                 loading.style.display = 'none';
                 result.style.display = 'block';
                 const db = d.database || {};
                 const cards = [
-                    ['??', d.module || '-', '#3370ff'],
-                    ['??', d.version || '-', '#00b42a'],
-                    ['???', d.server || '-', '#722ed1'],
-                    ['???', db.exists ? (db.size_mb + 'MB') : '?', db.exists ? '#00b42a' : '#f53f3f'],
-                    ['??', d.time || '-', '#ff7d00'],
+                    ['模块', d.module || '-', '#3370ff'],
+                    ['版本', d.version || '-', '#00b42a'],
+                    ['服务器', d.server || '-', '#722ed1'],
+                    ['数据库', db.exists ? (db.size_mb + 'MB') : '无', db.exists ? '#00b42a' : '#f53f3f'],
+                    ['时间', d.time || '-', '#ff7d00'],
                 ];
                 document.getElementById('testCards').innerHTML = cards.map(c =>
                     '<div class="board-card"><div class="board-card-label">' + c[0] + '</div>' +
@@ -2958,13 +2958,13 @@
                 const tables = db.tables || {};
                 const tableNames = Object.keys(tables);
                 document.getElementById('testTables').innerHTML =
-                    '<div style="font-weight:600;margin-bottom:8px;color:#1f2329">???? (' + tableNames.length + '?)</div>' +
+                    '<div style="font-weight:600;margin-bottom:8px;color:#1f2329">数据库表 (' + tableNames.length + '个)</div>' +
                     (tableNames.length ? tableNames.map(t =>
                         '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f1f2;font-size:0.85rem">' +
-                        '<span style="color:#4e5969">' + t + '</span><span style="color:#3370ff;font-weight:600">' + tables[t] + '?</span></div>'
-                    ).join('') : '<div style="color:#86909c">????</div>');
+                        '<span style="color:#4e5969">' + t + '</span><span style="color:#3370ff;font-weight:600">' + tables[t] + '行</span></div>'
+                    ).join('') : '<div style="color:#86909c">无数据库</div>');
             } catch(e) {
-                loading.textContent = '? ????: ' + e.message;
+                loading.textContent = '❌ 连接失败: ' + e.message;
             }
         }
 
