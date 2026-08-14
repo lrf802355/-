@@ -1037,7 +1037,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return self.send_json({"code": 500, "msg": f"导入失败: {str(e)}"}, 500)
 
     def api_test(self):
-        """??????????????/??/????"""
+        """测试模块：返回系统状态（版本/时间/数据库）"""
         import datetime
         import sqlite3
         try:
@@ -1059,15 +1059,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 conn.close()
             self.send_json({
                 "code": 200,
-                "module": "????",
+                "module": "测试模块",
                 "version": "v1.0.0",
                 "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "server": "workbench???",
+                "server": "workbench协作版",
                 "database": {"exists": db_exists, "size_mb": round(db_size/1024/1024, 1), "tables": tables}
             })
         except Exception as e:
             return self.send_json({"code": 500, "msg": str(e)}, 500)
-
     def board_other_rows(self, query_string):
         """对方表分行明细（按身份证查所有行）
         query: cert=150xxx
