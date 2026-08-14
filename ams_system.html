@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>工作台</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         /* ========== 设计令牌（Design Tokens） ========== */
         :root {
@@ -485,6 +486,12 @@
                     <div class="stat-value" id="statPerCapita">-</div>
                     <div class="stat-icon">📈</div>
                 </div>
+            </div>
+
+            <!-- 校区地图 -->
+            <div class="card" style="margin-bottom:16px">
+                <h2>🗺️ 校区分布图 <span style="font-size:0.7rem;color:#86909c;font-weight:normal">（点击标记查看校区数据）</span></h2>
+                <div id="campusMap" style="height:420px;border-radius:10px;z-index:1"></div>
             </div>
 
             <div id="dataLoading" class="loading">加载中...</div>
@@ -1019,6 +1026,7 @@
         </div>
     </div>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         const HOTELS = [
             {id:"10144", name:"上岸公寓B座", start:"2022年4月"},
@@ -1031,6 +1039,76 @@
             {id:"10140", name:"塔利南校区", start:"2024年12月"},
             {id:"10163", name:"城际酒店", start:"2026年7月15日"},
         ];
+
+        // 校区坐标（估算，可调整）
+        const CAMPUS_COORDS = {
+            "10144": {lat: 40.807, lon: 111.758, short: "B座", color: "#3370ff"},
+            "10137": {lat: 40.808, lon: 111.755, short: "C座", color: "#722ed1"},
+            "10143": {lat: 40.807, lon: 111.757, short: "D座", color: "#00b42a"},
+            "10145": {lat: 40.808, lon: 111.754, short: "小新", color: "#f53f3f"},
+            "10148": {lat: 40.810, lon: 111.758, short: "力沃", color: "#ff7d00"},
+            "10138": {lat: 40.887, lon: 111.740, short: "嵘泰", color: "#13c2c2"},
+            "10139": {lat: 40.900, lon: 111.720, short: "塔利北", color: "#2f54eb"},
+            "10140": {lat: 40.890, lon: 111.735, short: "塔利南", color: "#eb2f96"},
+            "10163": {lat: 40.817, lon: 111.652, short: "城际", color: "#fa8c16"},
+        };
+
+        // 地图实例
+        let campusMap = null;
+        let campusMarkers = {};
+
+        function initCampusMap() {
+            if (campusMap) { campusMap.invalidateSize(); return; }
+            if (typeof L === 'undefined') return; // Leaflet未加载（无外网）
+            campusMap = L.map('campusMap').setView([40.845, 111.72], 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 18
+            }).addTo(campusMap);
+            // 添加标记
+            HOTELS.forEach(h => {
+                const c = CAMPUS_COORDS[h.id];
+                if (!c) return;
+                const marker = L.circleMarker([c.lat, c.lon], {
+                    radius: 10, color: '#fff', weight: 2,
+                    fillColor: c.color, fillOpacity: 0.9
+                }).addTo(campusMap);
+                marker.bindPopup('<b>' + h.name + '</b><br>点击查看数据');
+                marker.on('click', function() {
+                    loadCampusPopup(h.id, h.name, c.color);
+                });
+                campusMarkers[h.id] = marker;
+            });
+        }
+
+        // 加载校区数据到弹窗
+        async function loadCampusPopup(hotelId, hotelName, color) {
+            try {
+                const r = await fetch('/api/income/summary?hotel_id=' + hotelId);
+                const d = await r.json();
+                const marker = campusMarkers[hotelId];
+                if (!marker) return;
+                const income = d.income || 0;
+                const count = d.count || 0;
+                const html = '<div style="font-size:13px;min-width:180px">' +
+                    '<b style="color:' + color + '">' + hotelName + '</b><br>' +
+                    '💰 本月收入：<b>¥' + Math.round(income).toLocaleString() + '</b><br>' +
+                    '📝 收入笔数：' + count.toLocaleString() + '<br>' +
+                    '<span style="color:#86909c;font-size:11px">点击下方查看详情</span>' +
+                    '<div style="margin-top:6px"><button onclick="location.href=\'javascript:void(0)\'" style="display:none"></button>' +
+                    '<a href="#" onclick="showCampusDetail(\'' + hotelId + '\')" style="color:' + color + '">查看详细数据 →</a></div></div>';
+                marker.setPopupContent(html);
+                marker.openPopup();
+            } catch(e) {
+                console.error('弹窗数据失败:', e);
+            }
+        }
+
+        // 查看校区详情（滚动到下方表格/弹提示）
+        function showCampusDetail(hotelId) {
+            const h = HOTELS.find(x => x.id === hotelId);
+            alert(h.name + ' 详细数据：\n请查看下方"本月收入汇总"表格');
+        }
 
         // ===== 校区楼层归属过滤（2026-08-03 核对系统后确认，6校区全部对齐）=====
         // 系统"楼栋房间"统计口径：逐楼层（本校区父节点下的楼层）累加，每层只算已发布(roomIsPublish=0)房间
@@ -1191,6 +1269,8 @@
         async function fetchAllData() {
             if (fetching) return;
             fetching = true;
+            // 初始化地图（首次）
+            setTimeout(initCampusMap, 100);
             const loading = document.getElementById('dataLoading');
             const content = document.getElementById('dataContent');
             loading.style.display = 'block';
