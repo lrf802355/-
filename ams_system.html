@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>工作台</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         /* ========== 设计令牌（Design Tokens） ========== */
         :root {
@@ -486,12 +485,6 @@
                     <div class="stat-value" id="statPerCapita">-</div>
                     <div class="stat-icon">📈</div>
                 </div>
-            </div>
-
-            <!-- 校区地图 -->
-            <div class="card" style="margin-bottom:16px">
-                <h2>🗺️ 校区分布图 <span style="font-size:0.7rem;color:#86909c;font-weight:normal">（点击标记查看校区数据）</span></h2>
-                <div id="campusMap" style="height:420px;border-radius:10px;z-index:1"></div>
             </div>
 
             <div id="dataLoading" class="loading">加载中...</div>
@@ -1007,6 +1000,14 @@
                 <div id="testCards" class="stat-cards" style="margin-bottom:16px"></div>
                 <div id="testTables" class="card" style="padding:16px"></div>
             </div>
+
+            <h2 style="margin-top:24px">🗺️ 校区地图下钻</h2>
+            <div class="page-sub">中国 → 内蒙古 → 呼和浩特市 → 校区标注</div>
+            <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center">
+                <span id="mapCrumb" style="font-size:0.85rem;color:#4e5969"></span>
+                <button class="btn" onclick="mapGoLevel(1)" style="display:none" id="mapBackBtn">↩ 返回中国</button>
+            </div>
+            <div id="campusDrillMap" style="width:100%;height:480px;border-radius:10px;border:1px solid #f0f1f2;background:#fafbfc"></div>
         </div>
             </div>
 
@@ -1026,7 +1027,7 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script>
         const HOTELS = [
             {id:"10144", name:"上岸公寓B座", start:"2022年4月"},
@@ -1039,76 +1040,6 @@
             {id:"10140", name:"塔利南校区", start:"2024年12月"},
             {id:"10163", name:"城际酒店", start:"2026年7月15日"},
         ];
-
-        // 校区坐标（估算，可调整）
-        const CAMPUS_COORDS = {
-            "10144": {lat: 40.807, lon: 111.758, short: "B座", color: "#3370ff"},
-            "10137": {lat: 40.808, lon: 111.755, short: "C座", color: "#722ed1"},
-            "10143": {lat: 40.807, lon: 111.757, short: "D座", color: "#00b42a"},
-            "10145": {lat: 40.808, lon: 111.754, short: "小新", color: "#f53f3f"},
-            "10148": {lat: 40.810, lon: 111.758, short: "力沃", color: "#ff7d00"},
-            "10138": {lat: 40.887, lon: 111.740, short: "嵘泰", color: "#13c2c2"},
-            "10139": {lat: 40.900, lon: 111.720, short: "塔利北", color: "#2f54eb"},
-            "10140": {lat: 40.890, lon: 111.735, short: "塔利南", color: "#eb2f96"},
-            "10163": {lat: 40.817, lon: 111.652, short: "城际", color: "#fa8c16"},
-        };
-
-        // 地图实例
-        let campusMap = null;
-        let campusMarkers = {};
-
-        function initCampusMap() {
-            if (campusMap) { campusMap.invalidateSize(); return; }
-            if (typeof L === 'undefined') return; // Leaflet未加载（无外网）
-            campusMap = L.map('campusMap').setView([40.845, 111.72], 12);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap',
-                maxZoom: 18
-            }).addTo(campusMap);
-            // 添加标记
-            HOTELS.forEach(h => {
-                const c = CAMPUS_COORDS[h.id];
-                if (!c) return;
-                const marker = L.circleMarker([c.lat, c.lon], {
-                    radius: 10, color: '#fff', weight: 2,
-                    fillColor: c.color, fillOpacity: 0.9
-                }).addTo(campusMap);
-                marker.bindPopup('<b>' + h.name + '</b><br>点击查看数据');
-                marker.on('click', function() {
-                    loadCampusPopup(h.id, h.name, c.color);
-                });
-                campusMarkers[h.id] = marker;
-            });
-        }
-
-        // 加载校区数据到弹窗
-        async function loadCampusPopup(hotelId, hotelName, color) {
-            try {
-                const r = await fetch('/api/income/summary?hotel_id=' + hotelId);
-                const d = await r.json();
-                const marker = campusMarkers[hotelId];
-                if (!marker) return;
-                const income = d.income || 0;
-                const count = d.count || 0;
-                const html = '<div style="font-size:13px;min-width:180px">' +
-                    '<b style="color:' + color + '">' + hotelName + '</b><br>' +
-                    '💰 本月收入：<b>¥' + Math.round(income).toLocaleString() + '</b><br>' +
-                    '📝 收入笔数：' + count.toLocaleString() + '<br>' +
-                    '<span style="color:#86909c;font-size:11px">点击下方查看详情</span>' +
-                    '<div style="margin-top:6px"><button onclick="location.href=\'javascript:void(0)\'" style="display:none"></button>' +
-                    '<a href="#" onclick="showCampusDetail(\'' + hotelId + '\')" style="color:' + color + '">查看详细数据 →</a></div></div>';
-                marker.setPopupContent(html);
-                marker.openPopup();
-            } catch(e) {
-                console.error('弹窗数据失败:', e);
-            }
-        }
-
-        // 查看校区详情（滚动到下方表格/弹提示）
-        function showCampusDetail(hotelId) {
-            const h = HOTELS.find(x => x.id === hotelId);
-            alert(h.name + ' 详细数据：\n请查看下方"本月收入汇总"表格');
-        }
 
         // ===== 校区楼层归属过滤（2026-08-03 核对系统后确认，6校区全部对齐）=====
         // 系统"楼栋房间"统计口径：逐楼层（本校区父节点下的楼层）累加，每层只算已发布(roomIsPublish=0)房间
@@ -1225,6 +1156,7 @@
             if (p === 'payroll') initPayrollPage();
             if (p === 'linen') initLinenPage();
             if (p === 'board') fetchBoard();
+            if (p === 'test') { fetchTest(); setTimeout(initDrillMap, 300); }
         }
 
         function getPageName(p) {
@@ -1269,8 +1201,6 @@
         async function fetchAllData() {
             if (fetching) return;
             fetching = true;
-            // 初始化地图（首次）
-            setTimeout(initCampusMap, 100);
             const loading = document.getElementById('dataLoading');
             const content = document.getElementById('dataContent');
             loading.style.display = 'block';
@@ -3046,6 +2976,97 @@
             } catch(e) {
                 loading.textContent = '❌ 连接失败: ' + e.message;
             }
+        }
+
+        // ========== 校区地图下钻（中国→内蒙古→呼市→校区）==========
+        const CAMPUS_MAP_DATA = [
+            {id:"10144", name:"上岸公寓B座", lat:40.807, lon:111.758, color:"#3370ff", income:370934, count:15793, residents:1367},
+            {id:"10137", name:"上岸公寓C座", lat:40.808, lon:111.755, color:"#722ed1", income:325934, count:14145, residents:1226},
+            {id:"10143", name:"上岸公寓D座", lat:40.807, lon:111.757, color:"#00b42a", income:70818, count:1854, residents:153},
+            {id:"10145", name:"小新公寓", lat:40.808, lon:111.754, color:"#f53f3f", income:79715, count:2753, residents:241},
+            {id:"10148", name:"景然力沃校区", lat:40.810, lon:111.758, color:"#ff7d00", income:83706, count:5587, residents:349},
+            {id:"10138", name:"嵘泰校区", lat:40.887, lon:111.740, color:"#13c2c2", income:46014, count:4491, residents:279},
+            {id:"10139", name:"塔利北校区", lat:40.900, lon:111.720, color:"#2f54eb", income:1879, count:3306, residents:309},
+            {id:"10140", name:"塔利南校区", lat:40.890, lon:111.735, color:"#eb2f96", income:1522, count:609, residents:37},
+            {id:"10163", name:"城际酒店", lat:40.817, lon:111.652, color:"#fa8c16", income:685, count:1420, residents:236},
+        ];
+        let mapChart = null;
+        let mapLevel = 1; // 1中国 2内蒙 3呼市
+
+        function initDrillMap() {
+            const el = document.getElementById('campusDrillMap');
+            if (!el) return;
+            if (mapChart) { mapChart.resize(); return; }
+            if (typeof echarts === 'undefined') {
+                el.innerHTML = '<div style="padding:30px;text-align:center;color:#86909c">ECharts未加载（需外网CDN）</div>';
+                return;
+            }
+            mapChart = echarts.init(el);
+            mapGoLevel(1);
+        }
+
+        async function mapLoadGeo(level) {
+            const urls = {1:'maps/china.json', 2:'maps/neimeng.json', 3:'maps/huhehaote.json'};
+            const names = {1:'china', 2:'neimeng', 3:'huhehaote'};
+            const res = await fetch(urls[level]);
+            const geo = await res.json();
+            echarts.registerMap(names[level], geo);
+            return names[level];
+        }
+
+        async function mapGoLevel(level) {
+            mapLevel = level;
+            const mapName = await mapLoadGeo(level);
+            const crumb = document.getElementById('mapCrumb');
+            const backBtn = document.getElementById('mapBackBtn');
+            if (level === 1) {
+                crumb.innerHTML = '<b>中国</b> › 点击"内蒙古自治区"';
+                backBtn.style.display = 'none';
+            } else if (level === 2) {
+                crumb.innerHTML = '中国 › <b>内蒙古自治区</b> › 点击"呼和浩特市"';
+                backBtn.style.display = 'inline-block';
+            } else {
+                crumb.innerHTML = '中国 › 内蒙古 › <b>呼和浩特市</b>（点击校区查看）';
+                backBtn.style.display = 'inline-block';
+            }
+
+            const option = {
+                tooltip: { trigger: 'item' },
+                series: [{
+                    type: 'map', map: mapName, roam: true,
+                    zoom: level === 1 ? 1.2 : (level === 2 ? 3.2 : 8),
+                    label: { show: true, fontSize: level === 3 ? 9 : 10, color: '#4e5969' },
+                    itemStyle: { areaColor: '#eaf2ff', borderColor: '#b3c6e6' },
+                    emphasis: { label: { color: '#fff' }, itemStyle: { areaColor: '#3370ff' } },
+                    select: { itemStyle: { areaColor: '#d5e4ff' } },
+                    selectedMode: false
+                }]
+            };
+
+            if (level === 3) {
+                // 呼市：加校区标注
+                option.series.push({
+                    type: 'effectScatter', coordinateSystem: 'geo', geoIndex: 0,
+                    data: CAMPUS_MAP_DATA.map(c => ({
+                        name: c.name, value: [c.lon, c.lat],
+                        itemStyle: { color: c.color }
+                    })),
+                    symbolSize: 14, rippleEffect: { brushType: 'stroke', scale: 2.5 },
+                    label: { show: true, formatter: '{b}', position: 'right', fontSize: 11, color: '#333' },
+                    itemStyle: { shadowBlur: 10 }
+                });
+            }
+
+            mapChart.setOption(option, true);
+            mapChart.off('click');
+            mapChart.on('click', p => {
+                if (level === 1 && (p.name === '内蒙古自治区' || p.name === '内蒙古')) mapGoLevel(2);
+                else if (level === 2 && p.name === '呼和浩特市') mapGoLevel(3);
+                else if (level === 3) {
+                    const c = CAMPUS_MAP_DATA.find(x => x.name === p.name);
+                    if (c) alert(c.name + '\n本月收入：¥' + c.income.toLocaleString() + '\n收入笔数：' + c.count.toLocaleString() + '\n在住人数：' + c.residents.toLocaleString());
+                }
+            });
         }
 
         window.onload = function() {

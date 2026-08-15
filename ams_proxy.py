@@ -111,7 +111,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.qr_status()
         elif path.startswith("/qr-auth/"):
             self.qr_auth(path[9:])
-        elif path.endswith((".css", ".js", ".png", ".jpg", ".gif", ".ico", ".svg", ".woff", ".woff2", ".ttf", ".html")):
+        elif path.endswith((".css", ".js", ".png", ".jpg", ".gif", ".ico", ".svg", ".woff", ".woff2", ".ttf", ".html", ".json")):
             self.serve_static(path)
         else:
             self.send_error(404)
