@@ -990,6 +990,22 @@
                 </select>
                 <span id="boardCount" style="color:#94a3b8;font-size:0.85rem"></span>
 
+            <div id="boardLoading" class="loading">加载中...</div>
+            <div id="boardContent" style="display:none;overflow-x:auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>序号</th><th>姓名</th><th>校区</th><th>月份</th><th>AMS天数</th><th>对方天数</th>
+                            <th>天数差</th><th>AMS金额</th><th>对方金额</th><th>金额差</th><th>状态</th><th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="boardBody"></tbody>
+                </table>
+                <div id="boardPagination" style="margin-top:12px;display:flex;gap:12px;align-items:center"></div>
+            </div>
+        </div>
+        </div>
+
         <!-- 测试模块页 -->
         <div id="test-page" class="page">
             <h1>🧪 测试模块</h1>
@@ -1008,22 +1024,6 @@
                 <button class="btn" onclick="mapGoLevel(1)" style="display:none" id="mapBackBtn">↩ 返回中国</button>
             </div>
             <div id="campusDrillMap" style="width:100%;height:480px;border-radius:10px;border:1px solid #f0f1f2;background:#fafbfc"></div>
-        </div>
-            </div>
-
-            <div id="boardLoading" class="loading">加载中...</div>
-            <div id="boardContent" style="display:none;overflow-x:auto">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>序号</th><th>姓名</th><th>校区</th><th>月份</th><th>AMS天数</th><th>对方天数</th>
-                            <th>天数差</th><th>AMS金额</th><th>对方金额</th><th>金额差</th><th>状态</th><th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="boardBody"></tbody>
-                </table>
-                <div id="boardPagination" style="margin-top:12px;display:flex;gap:12px;align-items:center"></div>
-            </div>
         </div>
     </div>
 
