@@ -12,6 +12,12 @@ from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+try:
+    import sys
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
 BASE = "http://localhost:8899"
 CAMPUSES = [
     ("10144", "上岸公寓B座"),

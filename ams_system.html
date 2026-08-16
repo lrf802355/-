@@ -415,7 +415,164 @@
             .service-pill { padding:5px 8px; }
             .content { width:100%; }
             .sidebar { position:sticky; top:0; z-index:10; }
-        }    </style>
+        }
+        /* ===== Workbench refresh: editorial navy + saffron ===== */
+        :root {
+            --surface-0: #fffdf8;
+            --surface-1: #fffdf8;
+            --surface-2: #f7f4ec;
+            --surface-3: #eef1f3;
+            --surface-hover: #f3eee3;
+            --surface-active: rgba(245, 166, 35, .12);
+            --primary: #e89416;
+            --primary-strong: #c87508;
+            --primary-soft: rgba(232, 148, 22, .12);
+            --primary-glow: rgba(232, 148, 22, .24);
+            --accent: #1b7180;
+            --success: #238b61;
+            --warning: #d97706;
+            --danger: #c84b45;
+            --purple: #6b5b95;
+            --text-primary: #17252b;
+            --text-secondary: #52636a;
+            --text-muted: #829096;
+            --text-faint: #93a0a5;
+            --border: rgba(35, 57, 63, .13);
+            --border-soft: rgba(35, 57, 63, .08);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 18px;
+            --shadow-sm: 0 2px 8px rgba(23, 37, 43, .05);
+            --shadow-md: 0 10px 30px rgba(23, 37, 43, .08);
+            --shadow-lg: 0 20px 50px rgba(23, 37, 43, .12);
+        }
+
+        body {
+            background: #eef1f3;
+            color: var(--text-secondary);
+            letter-spacing: .005em;
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            z-index: 0;
+            inset: 0 0 auto auto;
+            width: 48vw;
+            height: 48vw;
+            max-width: 720px;
+            max-height: 720px;
+            background: radial-gradient(circle, rgba(233, 169, 65, .20), rgba(233, 169, 65, 0) 68%);
+            pointer-events: none;
+        }
+        .sidebar {
+            width: 238px;
+            padding: 22px 12px 16px;
+            background: #17252b;
+            border-right: 0;
+            box-shadow: 10px 0 30px rgba(23, 37, 43, .10);
+            color: #dce5e5;
+        }
+        .sidebar-logo {
+            padding: 0 12px 24px;
+            margin-bottom: 14px;
+            border-bottom: 1px solid rgba(255,255,255,.12);
+        }
+        .logo-icon {
+            width: 42px; height: 42px; border-radius: 13px;
+            background: #f0a52a;
+            box-shadow: 0 8px 20px rgba(240,165,42,.24);
+            font-size: 1.15rem;
+        }
+        .logo-text { color: #fffaf0; font-family: Georgia, "Times New Roman", serif; font-size: 1.2rem; letter-spacing: .4px; }
+        .logo-sub { color: #9aadb0; }
+        .nav-group { color: #70878c; padding: 15px 12px 7px; font-size: .68rem; letter-spacing: 1.4px; }
+        .nav-item {
+            color: #aebfc1;
+            border-left: 0;
+            border-radius: 11px;
+            margin: 3px 0;
+            min-height: 42px;
+            padding: 10px 12px;
+            font-size: .84rem;
+        }
+        .nav-item:hover { color: #fffaf0; background: rgba(255,255,255,.07); }
+        .nav-item.active {
+            color: #17252b;
+            background: #f0a52a;
+            box-shadow: 0 8px 18px rgba(240,165,42,.18);
+            font-weight: 700;
+        }
+        .nav-icon { filter: saturate(.85); }
+        .sidebar-footer { color: #81969a; border-top-color: rgba(255,255,255,.12); padding: 16px 12px 4px; }
+        .sidebar-footer strong { color: #e9f0ef; display: block; margin-bottom: 4px; }
+        .content { padding: 28px 34px 48px; max-width: 1800px; }
+        .topbar {
+            min-height: 68px;
+            margin: -2px 0 28px;
+            padding: 14px 18px;
+            background: rgba(255,253,248,.82);
+            border: 1px solid rgba(255,255,255,.85);
+            border-radius: 16px;
+            box-shadow: var(--shadow-md);
+            backdrop-filter: blur(16px);
+        }
+        .topbar-mark { width: 36px; height: 36px; border-radius: 11px; background: #e9f2f1; color: var(--accent); }
+        .topbar-title { font-family: Georgia, "Times New Roman", serif; font-size: 1.02rem; color: var(--text-primary); }
+        .topbar-context { color: var(--text-muted); }
+        .service-pill { background: #e9f7ef; color: #238b61; }
+        .page.active { animation: pageLift .42s cubic-bezier(.22,.8,.22,1); }
+        @keyframes pageLift { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        h1 { color: var(--text-primary); font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.65rem, 2.2vw, 2.2rem); letter-spacing: -.035em; }
+        .page-sub { font-size: .9rem; color: var(--text-muted); margin-bottom: 5px; }
+        .update-time { color: var(--text-muted); margin-bottom: 16px; }
+        .card {
+            background: rgba(255,253,248,.92);
+            border: 1px solid rgba(255,255,255,.9);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            padding: 20px;
+            margin-bottom: 18px;
+        }
+        .card:hover { box-shadow: var(--shadow-md); }
+        .stat-card {
+            border: 1px solid rgba(255,255,255,.9);
+            border-radius: 16px;
+            box-shadow: var(--shadow-sm);
+            min-height: 126px;
+            padding: 18px;
+        }
+        .stat-card::after { opacity: .08; }
+        .stat-card .stat-value { font-family: Georgia, "Times New Roman", serif; letter-spacing: -.03em; }
+        .btn {
+            border: 1px solid transparent;
+            border-radius: 10px;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(23,37,43,.06);
+        }
+        .btn-primary { background: var(--text-primary); color: #fffaf0; }
+        .btn-primary:hover { background: #29434b; transform: translateY(-1px); }
+        table { font-size: .84rem; }
+        th { background: #f3eee3; color: #6b5b3d; border-bottom-color: var(--border); padding: 13px 10px; }
+        td { color: var(--text-secondary); border-bottom: 1px solid var(--border-soft); padding: 11px 10px; }
+        tbody tr:hover td { background: rgba(240,165,42,.07); }
+        input[type="date"], input[type="text"], input[type="number"], select {
+            background: #fffdf8;
+            border-color: var(--border);
+            color: var(--text-primary);
+            border-radius: 10px;
+        }
+        input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+        .section-title, .card-title { color: var(--text-primary); }
+        @media (max-width: 768px) {
+            .sidebar { width: 100%; padding: 10px 8px; }
+            .sidebar-logo { padding: 4px 8px 12px; margin-bottom: 4px; }
+            .nav-group { display: none; }
+            .nav-item { min-height: 38px; padding: 8px 10px; }
+            .content { padding: 18px 14px 32px; }
+            .topbar { margin-bottom: 18px; }
+        }
+
+</style>
 </head>
 <body>
     <div class="sidebar">
@@ -2988,7 +3145,13 @@
                     if (r.other_zt === 1) otherDaysDisplay = '直通班';
                     else if (r.status === '文字天数' && r.days_text) otherDaysDisplay = r.days_text;
                     // 跨月展开：分月多行 + 合计行
-                    const months = (r.months || []).filter(m => m[2] > 0);
+                    // 分月明细跟随月份筛选；未选择时显示全部月份
+                    const startMonthNum = startMonth ? parseInt(startMonth, 10) : 1;
+                    const endMonthNum = endMonth ? parseInt(endMonth, 10) : 12;
+                    const months = (r.months || []).filter(m => {
+                        const monthNum = parseInt((m[0] || '').slice(5, 7), 10);
+                        return m[2] > 0 && monthNum >= startMonthNum && monthNum <= endMonthNum;
+                    });
                     const isMulti = months.length > 1;
                     const idx = (boardPage-1)*50 + i + 1;
                     let rowHtml = '';
@@ -3008,7 +3171,8 @@
                                 '<td class="number money">¥' + Math.round(mAmt).toLocaleString() + '</td>' +
                                 '<td class="number money"></td>' +
                                 '<td class="number"></td>' +
-                                '<td></td><td></td>' +
+                                '<td style="color:#94a3b8;font-size:0.75rem">分月</td>' +
+                                '<td></td>' +
                                 '</tr>';
                         });
                         // 合计行（高亮）
@@ -3109,15 +3273,39 @@
             input.value = '';
         }
 
-        // 查看某人分月明细
+        // 查看某人分月明细（月份+校区+天数+金额，同月多校区合并为一行）
         async function showBoardMonthly(cert) {
             try {
                 const r = await fetch('/api/board/monthly?cert=' + cert);
                 const d = await r.json();
                 if (d.code !== 200) { alert('查询失败'); return; }
-                const records = d.records || [];
-                let msg = records.map(x => x.month + ': ' + x.ams_days + '天').join('\n');
-                alert('AMS分月明细:\n' + (msg || '无记录'));
+                const allRecords = d.records || [];
+                const selectedStart = (document.getElementById('boardStartMonth') || {}).value || '';
+                const selectedEnd = (document.getElementById('boardEndMonth') || {}).value || '';
+                const startNum = selectedStart ? parseInt(selectedStart, 10) : 1;
+                const endNum = selectedEnd ? parseInt(selectedEnd, 10) : 12;
+                const records = allRecords.filter(x => {
+                    const n = parseInt((x.month || '').slice(5, 7), 10);
+                    return n >= startNum && n <= endNum;
+                });
+                if (!records.length) { alert('AMS分月明细:\n选定月份无记录'); return; }
+                const byMonth = {};
+                records.forEach(x => {
+                    const m = x.month || '未知';
+                    if (!byMonth[m]) byMonth[m] = [];
+                    byMonth[m].push(x);
+                });
+                const lines = Object.keys(byMonth).sort().map(m => {
+                    const items = byMonth[m];
+                    const total = items.reduce((s2, x) => s2 + (x.ams_days || 0), 0);
+                    const detail = items.map(x => {
+                        let campus = (x.campus || '').replace('上岸公寓', '').replace('校区', '');
+                        const amt = (campus.indexOf('小新') >= 0) ? 0 : (x.ams_days || 0) * 25;
+                        return campus + ' ' + x.ams_days + '天' + (amt ? ' ¥' + amt.toLocaleString() : '');
+                    }).join('；');
+                    return m + ' (' + total + '天): ' + detail;
+                });
+                alert('AMS分月明细 (' + records.length + '条，已按月份筛选):\n\n' + lines.join('\n'));
             } catch(e) { alert('查询失败: ' + e.message); }
         }
 

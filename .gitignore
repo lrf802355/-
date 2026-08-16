@@ -14,3 +14,10 @@ Desktop.ini
 
 # 数据库备份
 finance.db.*
+
+# 对话记录与会话数据（不入库）
+对话备份/
+对话记录_20260816.md
+
+# 工资模板（敏感财务数据，不入库）
+payroll_templates/

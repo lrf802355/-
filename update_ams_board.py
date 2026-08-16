@@ -57,10 +57,10 @@ def month_range():
         start, end = int(sys.argv[1]), int(sys.argv[2])
         year = int(sys.argv[3]) if len(sys.argv) >= 4 else current.year
     else:
-        if current.month == 1:
-            return None
-        year = current.year
-        start = end = current.month - 1
+        # 默认上一个完整月份；1 月自动取去年 12 月（不再跳过）
+        prev = current.replace(day=1)
+        prev = prev.replace(year=prev.year - 1, month=12) if prev.month == 1 else prev.replace(month=prev.month - 1)
+        return prev.year, prev.month, prev.month
     if not 1 <= start <= end <= 12:
         raise ValueError(f"月份范围无效: {start}-{end}")
     return year, start, end
@@ -112,10 +112,15 @@ def main():
     for month in range(start_month, end_month + 1):
         c.execute("DELETE FROM board_compare_monthly WHERE month=?", (f"{year}-{month:02d}",))
 
+    # 直通班身份证集合（本次拉取中 remark 含“直通班”的 AMS 记录）
+    zt_certs = set()
+
     for hid, campus, month, name, cert_enc, days, is_zt in raw:
         cert = decoded.get((cert_enc, hid), "")
         if not cert:
             continue
+        if is_zt:
+            zt_certs.add(cert)
         c.execute("SELECT ams_days FROM board_compare_monthly WHERE cert=? AND month=? AND campus=?", (cert, month, campus))
         old = c.fetchone()
         if old:
@@ -123,29 +128,46 @@ def main():
         else:
             c.execute("INSERT INTO board_compare_monthly(cert,month,name,ams_days,campus) VALUES(?,?,?,?,?)", (cert, month, name, days, campus))
 
-    # 从完整月度表重算AMS累计；对方字段只从原有board_compare中保留。
-    c.execute("SELECT cert,campus,MAX(name),SUM(ams_days) FROM board_compare_monthly GROUP BY cert,campus")
-    totals = {(r[0], r[1]): {"name": r[2], "days": r[3]} for r in c.fetchall()}
-    c.execute("SELECT cert,campus,name,other_days,other_amt,other_zt,other_exist,ams_zt FROM board_compare")
-    existing = {(r[0], r[1]): r for r in c.fetchall()}
+    # 重建 board_compare：按身份证合并为一行（多校区天数加总、主校区=天数最多），
+    # 对方字段与直通班标记从旧表保留（取最大值），避免同人多校区被拆成多行。
+    c.execute("SELECT cert, MAX(name), MAX(other_days), MAX(other_amt), MAX(other_zt), MAX(other_exist), MAX(ams_zt) FROM board_compare GROUP BY cert")
+    old_map = {r[0]: {"name": r[1] or '', "other_days": r[2] or 0, "other_amt": r[3] or 0,
+                      "other_zt": r[4] or 0, "other_exist": r[5] or 0, "ams_zt": r[6] or 0} for r in c.fetchall()}
 
-    for key, old in existing.items():
-        if key in totals:
-            info = totals.pop(key)
-            campus = key[1]
-            amt = 0 if campus == "小新公寓" else info["days"] * 25
-            c.execute("UPDATE board_compare SET name=?,ams_days=?,ams_amt=? WHERE cert=? AND campus=?", (info["name"], info["days"], amt, key[0], campus))
+    # 按 cert+校区 汇总 AMS 累计（多校区明细仍保留在 monthly 表供前端展开）
+    c.execute("SELECT cert, campus, MAX(name), SUM(ams_days) FROM board_compare_monthly GROUP BY cert, campus")
+    per_campus = {}
+    for cert, campus, name, days in c.fetchall():
+        per_campus.setdefault(cert, []).append((campus or '', name or '', int(days or 0)))
+
+    all_certs = set(old_map.keys()) | set(per_campus.keys())
+    c.execute("DROP TABLE board_compare")
+    c.execute("""CREATE TABLE board_compare (
+        cert TEXT NOT NULL, campus TEXT NOT NULL DEFAULT '', name TEXT,
+        ams_days INTEGER DEFAULT 0, other_days INTEGER DEFAULT 0,
+        ams_amt REAL DEFAULT 0, other_amt REAL DEFAULT 0,
+        ams_zt INTEGER DEFAULT 0, other_zt INTEGER DEFAULT 0,
+        other_exist INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        PRIMARY KEY (cert)
+    )""")
+    for cert in sorted(all_certs):
+        rows = per_campus.get(cert, [])
+        old = old_map.get(cert, {})
+        total_days = sum(d for _, _, d in rows)
+        if rows:
+            main_campus = max(rows, key=lambda r: r[2])[0]
+            name = max((r[1] for r in rows), key=len) or old.get("name", "")
         else:
-            c.execute("UPDATE board_compare SET ams_days=0,ams_amt=0,ams_zt=0 WHERE cert=? AND campus=?", key)
-
-    for (cert, campus), info in totals.items():
-        old = existing.get((cert, campus))
-        other_days = old[3] if old else 0
-        other_amt = old[4] if old else 0
-        other_zt = old[5] if old else 0
-        other_exist = old[6] if old else 0
-        amt = 0 if campus == "小新公寓" else info["days"] * 25
-        c.execute("INSERT OR REPLACE INTO board_compare(cert,campus,name,ams_days,other_days,ams_amt,other_amt,ams_zt,other_zt,other_exist) VALUES(?,?,?,?,?,?,?,?,?,?)", (cert,campus,info["name"],info["days"],other_days,amt,other_amt,0,other_zt,other_exist))
+            main_campus = ''  # 仅对方有的记录无 AMS 校区
+            name = old.get("name", "")
+        amt = 0 if main_campus == "小新公寓" else total_days * 25
+        ams_zt = 1 if cert in zt_certs else old.get("ams_zt", 0)
+        c.execute("INSERT OR REPLACE INTO board_compare "
+                  "(cert, campus, name, ams_days, other_days, ams_amt, other_amt, ams_zt, other_zt, other_exist) "
+                  "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                  (cert, main_campus, name, total_days, old.get("other_days", 0), amt,
+                   old.get("other_amt", 0), ams_zt, old.get("other_zt", 0), old.get("other_exist", 0)))
 
     conn.commit()
     conn.close()

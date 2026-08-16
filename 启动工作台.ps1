@@ -1,9 +1,11 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $base = Split-Path -Parent $MyInvocation.MyCommand.Path
 $python = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python314\pythonw.exe'
+if (-not $python -or -not (Test-Path $python)) { $python = (Get-Command pythonw -ErrorAction SilentlyContinue).Source }
 $script = Join-Path $base 'ams_proxy.py'
 $pidFile = Join-Path $base '.workbench.pid'
 $url = 'http://localhost:8899/'
+$port = 8899
 
 function Test-Workbench {
     try {
@@ -13,14 +15,13 @@ function Test-Workbench {
 }
 
 Set-Location $base
-if (-not (Test-Path $python)) {
+if (-not $python -or -not (Test-Path $python)) {
     [System.Windows.Forms.MessageBox]::Show('没有找到 Python，请先安装 Python。', '工作台启动失败', 'OK', 'Error') | Out-Null
     exit 1
 }
 
 if (-not (Test-Workbench)) {
     $p = Start-Process -FilePath $python -ArgumentList @($script) -WorkingDirectory $base -WindowStyle Hidden -PassThru
-    Set-Content -LiteralPath $pidFile -Value $p.Id -Encoding ASCII
     $ready = $false
     1..20 | ForEach-Object {
         Start-Sleep -Milliseconds 500
@@ -30,6 +31,11 @@ if (-not (Test-Workbench)) {
         [System.Windows.Forms.MessageBox]::Show('工作台服务启动超时，请检查工作台目录中的日志或重新启动。', '工作台启动失败', 'OK', 'Error') | Out-Null
         exit 1
     }
+    # 记录真实监听 8899 的进程，避免停止时找错对象
+    $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    $pidToSave = $p.Id
+    if ($listener) { $pidToSave = $listener[0].OwningProcess }
+    Set-Content -LiteralPath $pidFile -Value $pidToSave -Encoding ASCII
 }
 
 # 明确调用 Edge，避免隐藏启动时默认浏览器关联失效

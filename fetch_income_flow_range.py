@@ -13,6 +13,12 @@ from datetime import datetime, timedelta
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+try:
+    import sys
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
 BASE = "http://localhost:8899"
 DB = os.path.join(BASE_DIR, "finance.db")
 

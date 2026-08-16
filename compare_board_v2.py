@@ -154,6 +154,10 @@ def main():
 
     # 4. 对方Excel（排除直通班，只累计）
     print("\n=== 2. 对方Excel（累计）===")
+    if not os.path.exists(EXCEL_PATH):
+        print("找不到对方Excel文件: " + EXCEL_PATH)
+        print("请先在工作台目录下新建 documents/文件夹，并将对方包住Excel放入后重试。")
+        return 1
     wb = openpyxl.load_workbook(EXCEL_PATH, data_only=True)
     ws = wb['Sheet1']
     other_people = {}

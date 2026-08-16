@@ -29,6 +29,7 @@ HOTEL_IDS = {
     "10138": "嵘泰校区",
     "10139": "塔利北校区",
     "10140": "塔利南校区",
+    "10163": "城际酒店",
 }
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -348,11 +349,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
         except Exception as e:
             return self.send_json({"code": 500, "msg": str(e)}, 500)
 
+    _monthly_agg_ts = 0.0  # 类变量：上次月度聚合重建时间戳，避免每次请求都全量重建
+
     def _refresh_monthly_agg(self):
         """全量重建月度预聚合表，与「每日在住人数明细」同一口径：
         每天优先取实际快照(daily_residents)，没有快照的日期用收入流水人次补齐，
         再按月汇总，保证两个子模块数据一致。
+        5 分钟内重复请求不重建，避免每次打开页面都重算百万行流水。
         """
+        import time
+        if time.time() - self.__class__._monthly_agg_ts < 300:
+            return
         try:
             conn = self._db()
             c = conn.cursor()
@@ -388,8 +395,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
                          GROUP BY ym, hotel_id, hotel_name""")
             conn.commit()
             conn.close()
-        except Exception:
-            pass
+            self.__class__._monthly_agg_ts = time.time()
+        except Exception as e:
+            print(f"[ams_proxy] 月度聚合重建失败: {e}", flush=True)
 
     def query_daily_occupancy(self, query_string):
         """查询某月每天各校区在住人数。
@@ -1256,7 +1264,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             conn.close()
 
             import openpyxl
-            from openpyxl.styles import Font, PatternFill
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
             wb = openpyxl.Workbook()
             # Sheet1 汇总
             ws_sum = wb.active
@@ -1287,6 +1295,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             diff_count = 0
             for r in rows:
                 d = dict(r)
+                # 清理 Excel/AMS 导入姓名中的前导制表符和空格，避免导出后姓名视觉上混在一起。
+                export_name = str(d.get('name') or '').strip()
                 days_same = d['ams_days_total'] == d['other_days']
                 amt_same = abs((d['ams_amt'] or 0) - (d['other_amt'] or 0)) < 0.01
                 # 原因判定（用合并后的总天数）
@@ -1365,7 +1375,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                         campus_amt = (campus_days or 0) * 25
                     room_info = campus_rooms.get(d['cert'], {}).get(campus_name, ('', '', '', '', '', ''))
                     room_name, price_code, medi_code, free_list, cin, cout = room_info
-                    ws_det.append([d['name'], d.get('cert', ''), d.get('mobile', ''), campus_show,
+                    ws_det.append([export_name, d.get('cert', ''), d.get('mobile', ''), campus_show,
                                    month[5:] + '月' if month else '',
                                    campus_days, other_display, (campus_days or 0) - (d['other_days'] or 0),
                                    campus_amt, round(d['other_amt'] or 0),
@@ -1392,13 +1402,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
                             other_amt_row = ''
                             diff_days_row = ''
                             diff_amt_row = ''
-                        ws_det.append([d['name'], d.get('cert', ''), d.get('mobile', ''), campus_show,
+                        ws_det.append([export_name, d.get('cert', ''), d.get('mobile', ''), campus_show,
                                        month[5:] + '月' if month else '',
                                        campus_days, other_disp_row, diff_days_row,
                                        campus_amt, other_amt_row, diff_amt_row, status, reason,
                                        final_days, final_amt if final_amt == '' else round(final_amt)])
                     # 合计行（高亮）
-                    ws_det.append([d['name'] + ' 合计', d.get('cert', ''), d.get('mobile', ''), '合计', '',
+                    # 合计行姓名保持纯姓名，"合计"只放在校区列，避免导出后人名被拼接。
+                    ws_det.append([export_name, d.get('cert', ''), d.get('mobile', ''), '合计', '合计',
                                    d['ams_days_total'], other_display, (d['ams_days_total'] or 0) - (d['other_days'] or 0),
                                    round(d['ams_amt'] or 0), round(d['other_amt'] or 0),
                                    round((d['other_amt'] or 0) - (d['ams_amt'] or 0)), status, reason,
@@ -1408,14 +1419,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     for col in range(1, ws_det.max_column + 1):
                         ws_det.cell(row=last_row, column=col).font = Font(bold=True)
                         ws_det.cell(row=last_row, column=col).fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+                    # 人员之间留出空白行，避免连续人员的明细视觉上混在一起。
+                    ws_det.append([])
+                    ws_det.row_dimensions[ws_det.max_row].height = 7
 
                 if status == '一致':
                     match_count += 1
-                    ws_m.append([d['name'], d.get('cert', ''), d.get('mobile', ''), d.get('campus', '').replace('上岸公寓', '').replace('校区', ''),
+                    ws_m.append([export_name, d.get('cert', ''), d.get('mobile', ''), d.get('campus', '').replace('上岸公寓', '').replace('校区', ''),
                                  d.get('room_name', ''), d['ams_days_total'], d['other_days'], round(d['ams_amt'] or 0), round(d['other_amt'] or 0)])
                 else:
                     diff_count += 1
-                    ws_d.append([d['name'], d.get('cert', ''), d.get('mobile', ''), d.get('campus', '').replace('上岸公寓', '').replace('校区', ''),
+                    ws_d.append([export_name, d.get('cert', ''), d.get('mobile', ''), d.get('campus', '').replace('上岸公寓', '').replace('校区', ''),
                                  d.get('room_name', ''), d['ams_days_total'], d['other_days'], (d['ams_days_total'] or 0) - (d['other_days'] or 0),
                                  round(d['ams_amt'] or 0), round(d['other_amt'] or 0),
                                  round((d['other_amt'] or 0) - (d['ams_amt'] or 0)), reason])
@@ -1423,6 +1437,24 @@ class ProxyHandler(BaseHTTPRequestHandler):
             ws_sum.append(["一致", match_count])
             ws_sum.append(["不一致", diff_count])
             ws_sum.append(["合计", match_count + diff_count])
+
+            # 导出表统一列宽、自动换行和筛选，避免姓名/证件号/手机号显示挤在一起。
+            widths = {
+                'A': 14, 'B': 22, 'C': 16, 'D': 15, 'E': 10,
+                'F': 11, 'G': 11, 'H': 11, 'I': 12, 'J': 12,
+                'K': 11, 'L': 16, 'M': 28, 'N': 11, 'O': 12,
+            }
+            thin = Side(style='thin', color='D9E2F3')
+            for ws in (ws_det, ws_m, ws_d):
+                for col, width in widths.items():
+                    ws.column_dimensions[col].width = width
+                ws.freeze_panes = 'A2'
+                ws.auto_filter.ref = ws.dimensions
+                for row in ws.iter_rows():
+                    for cell in row:
+                        cell.alignment = Alignment(vertical='center', wrap_text=True)
+                        cell.border = Border(bottom=thin)
+
             for col in range(1, 3):
                 ws_sum.cell(row=1, column=col).font = Font(bold=True)
                 ws_sum.cell(row=1, column=col).fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
@@ -1469,7 +1501,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             
             query = f"SELECT * FROM {table} WHERE 1=1"
             count_query = f"SELECT COUNT(*) FROM {table} WHERE 1=1"
-            sum_query = f"SELECT COALESCE(SUM(amount), 0) FROM {table} WHERE 1=1"
+            sum_column = "total_price" if table == "assets" else "amount"
+            sum_query = f"SELECT COALESCE(SUM({sum_column}), 0) FROM {table} WHERE 1=1"
             
             params_list = []
             if company:
