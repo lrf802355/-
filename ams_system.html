@@ -1175,8 +1175,8 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>序号</th><th>姓名</th><th>校区</th><th>月份</th><th>AMS天数</th><th>对方天数</th>
-                            <th>天数差</th><th>AMS金额</th><th>对方金额</th><th>金额差</th><th>状态</th><th>操作</th>
+                            <th>序号</th><th>姓名</th><th>校区</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+                            <th>合计</th><th>对方天数</th><th>天数差</th><th>AMS金额</th><th>对方金额</th><th>金额差</th><th>状态</th><th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="boardBody"></tbody>
@@ -3144,69 +3144,39 @@
                     let otherDaysDisplay = r.other_days;
                     if (r.other_zt === 1) otherDaysDisplay = '直通班';
                     else if (r.status === '文字天数' && r.days_text) otherDaysDisplay = r.days_text;
-                    // 跨月展开：分月多行 + 合计行
-                    // 分月明细跟随月份筛选；未选择时显示全部月份
+                    // 每人一行：各月天数分列 + 合计（名字只出现一次）
                     const startMonthNum = startMonth ? parseInt(startMonth, 10) : 1;
                     const endMonthNum = endMonth ? parseInt(endMonth, 10) : 12;
                     const months = (r.months || []).filter(m => {
                         const monthNum = parseInt((m[0] || '').slice(5, 7), 10);
                         return m[2] > 0 && monthNum >= startMonthNum && monthNum <= endMonthNum;
                     });
-                    const isMulti = months.length > 1;
                     const idx = (boardPage-1)*50 + i + 1;
-                    let rowHtml = '';
-                    if (isMulti) {
-                        // 分月行（每人各月）
-                        months.forEach(m => {
-                            const mDays = m[2];
-                            const mAmt = (m[1] && m[1].indexOf('小新') >= 0) ? 0 : mDays * 25;
-                            rowHtml += '<tr style="opacity:0.8">' +
-                                '<td>' + idx + '</td>' +
-                                '<td class="name-cell">' + (r.name || '-') + '</td>' +
-                                '<td>' + (m[1] || '').replace('上岸公寓','').replace('校区','') + '</td>' +
-                                '<td class="number" style="color:#86909c;font-size:0.75rem">' + (m[0] || '').slice(5) + '月</td>' +
-                                '<td class="number">' + mDays + '</td>' +
-                                '<td class="number"></td>' +
-                                '<td class="number"></td>' +
-                                '<td class="number money">¥' + Math.round(mAmt).toLocaleString() + '</td>' +
-                                '<td class="number money"></td>' +
-                                '<td class="number"></td>' +
-                                '<td style="color:#94a3b8;font-size:0.75rem">分月</td>' +
-                                '<td></td>' +
-                                '</tr>';
-                        });
-                        // 合计行（高亮）
-                        rowHtml += '<tr style="background:rgba(51,112,255,0.08);font-weight:700">' +
-                            '<td>' + idx + '</td>' +
-                            '<td class="name-cell">' + (r.name || '-') + '</td>' +
-                            '<td>' + (r.campus || '-').replace('上岸公寓','').replace('校区','') + '</td>' +
-                            '<td class="number" style="color:#3370ff">合计</td>' +
-                            '<td class="number" style="color:#3370ff">' + r.ams_days + '</td>' +
-                            '<td class="number" style="color:' + color + '">' + sign + '</td>' +
-                            '<td class="number" style="color:' + color + '">' + otherDaysDisplay + '</td>' +
-                            '<td class="number money">¥' + Math.round(r.ams_amt || 0).toLocaleString() + '</td>' +
-                            '<td class="number money">¥' + Math.round(r.other_amt || 0).toLocaleString() + '</td>' +
-                            '<td class="number" style="color:' + amtDiffColor + '">' + amtDiffShow + '</td>' +
-                            '<td><span style="color:' + color + '">' + icon + ' ' + r.status + '</span></td>' +
-                            '<td><button class="btn" style="padding:6px 14px;font-size:0.8rem;min-height:36px" onclick="showBoardMonthly(\'' + r.cert + '\')">📅 明细</button></td>' +
-                            '</tr>';
-                    } else {
-                        // 单月：正常1行
-                        rowHtml = '<tr>' +
-                            '<td>' + idx + '</td>' +
-                            '<td class="name-cell">' + (r.name || '-') + '</td>' +
-                            '<td>' + (r.campus || '-').replace('上岸公寓','').replace('校区','') + '</td>' +
-                            '<td class="number"></td>' +
-                            '<td class="number">' + r.ams_days + '</td>' +
-                            '<td class="number">' + otherDaysDisplay + '</td>' +
-                            '<td class="number" style="color:' + color + '">' + sign + '</td>' +
-                            '<td class="number money">¥' + Math.round(r.ams_amt || 0).toLocaleString() + '</td>' +
-                            '<td class="number money">¥' + Math.round(r.other_amt || 0).toLocaleString() + '</td>' +
-                            '<td class="number" style="color:' + amtDiffColor + '">' + amtDiffShow + '</td>' +
-                            '<td><span style="color:' + color + '">' + icon + ' ' + r.status + '</span></td>' +
-                            '<td><button class="btn" style="padding:6px 14px;font-size:0.8rem;min-height:36px" onclick="showBoardMonthly(\'' + r.cert + '\')">📅 明细</button></td>' +
-                            '</tr>';
-                    }
+                    // 各月天数（按月份归列）
+                    const monthDays = {4:0, 5:0, 6:0, 7:0, 8:0};
+                    months.forEach(m => {
+                        const mn = parseInt((m[0] || '').slice(5, 7), 10);
+                        if (monthDays[mn] !== undefined) monthDays[mn] += m[2];
+                    });
+                    const monthCells = [4,5,6,7,8].map(mn => {
+                        const v = monthDays[mn];
+                        return '<td class="number" style="' + (v > 0 ? 'font-weight:600' : 'color:#c0c4cc') + '">' + (v > 0 ? v : '-') + '</td>';
+                    }).join('');
+                    // 合计 = AMS总天数
+                    rowHtml = '<tr>' +
+                        '<td>' + idx + '</td>' +
+                        '<td class="name-cell">' + (r.name || '-') + '</td>' +
+                        '<td>' + (r.campus || '-').replace('上岸公寓','').replace('校区','') + '</td>' +
+                        monthCells +
+                        '<td class="number" style="font-weight:700;color:#3370ff">' + r.ams_days + '</td>' +
+                        '<td class="number">' + otherDaysDisplay + '</td>' +
+                        '<td class="number" style="color:' + color + '">' + sign + '</td>' +
+                        '<td class="number money">¥' + Math.round(r.ams_amt || 0).toLocaleString() + '</td>' +
+                        '<td class="number money">¥' + Math.round(r.other_amt || 0).toLocaleString() + '</td>' +
+                        '<td class="number" style="color:' + amtDiffColor + '">' + amtDiffShow + '</td>' +
+                        '<td><span style="color:' + color + '">' + icon + ' ' + r.status + '</span></td>' +
+                        '<td><button class="btn" style="padding:6px 14px;font-size:0.8rem;min-height:36px" onclick="showBoardMonthly(\'' + r.cert + '\')">📅 明细</button></td>' +
+                        '</tr>';
                     return rowHtml;
                 }).join('');
                 document.getElementById('boardBody').innerHTML = html;
