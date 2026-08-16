@@ -1273,7 +1273,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
             # Sheet2 对比明细（按人分组：单月1行，跨月分月行+合计行）
             MONTHS = ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08"]
-            det_headers = ["姓名", "身份证号", "手机号", "校区", "月份", "AMS天数", "对方天数", "天数差",
+            det_headers = ["姓名", "身份证号", "手机号", "校区",
+                           "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月",
+                           "合计", "对方天数", "天数差",
                            "AMS金额", "对方金额", "金额差", "状态", "原因",
                            "最终天数", "最终金额"]
             ws_det = wb.create_sheet("对比明细")
@@ -1363,65 +1365,25 @@ class ProxyHandler(BaseHTTPRequestHandler):
                         if campus_days > 0:
                             month_rows.append((month, campus_name, campus_days))
 
-                if len(month_rows) <= 1:
-                    # 单月：1行
-                    month = month_rows[0][0] if month_rows else ''
-                    campus_name = month_rows[0][1] if month_rows else (d.get('campus') or '')
-                    campus_days = month_rows[0][2] if month_rows else d['ams_days_total']
-                    campus_show = (campus_name or '').replace('上岸公寓', '').replace('校区', '')
-                    if '小新' in campus_name:
-                        campus_amt = 0
-                    else:
-                        campus_amt = (campus_days or 0) * 25
-                    room_info = campus_rooms.get(d['cert'], {}).get(campus_name, ('', '', '', '', '', ''))
-                    room_name, price_code, medi_code, free_list, cin, cout = room_info
-                    ws_det.append([export_name, d.get('cert', ''), d.get('mobile', ''), campus_show,
-                                   month[5:] + '月' if month else '',
-                                   campus_days, other_display, (campus_days or 0) - (d['other_days'] or 0),
-                                   campus_amt, round(d['other_amt'] or 0),
-                                   round((d['other_amt'] or 0) - (d['ams_amt'] or 0)), status, reason,
-                                   final_days, final_amt if final_amt == '' else round(final_amt)])
+                # 每人一行：1-12月分列 + 合计（名字只出现一次）
+                month_days_map = {m: 0 for m in range(1, 13)}
+                for month, campus_name, campus_days in month_rows:
+                    mn = int(month[5:7])
+                    if mn in month_days_map:
+                        month_days_map[mn] += campus_days
+                # 主校区（天数最多的）
+                if month_rows:
+                    main_campus = max(month_rows, key=lambda x: x[2])[1]
                 else:
-                    # 跨月：分月行 + 合计行
-                    for ci, (month, campus_name, campus_days) in enumerate(month_rows):
-                        campus_show = (campus_name or '').replace('上岸公寓', '').replace('校区', '')
-                        if '小新' in campus_name:
-                            campus_amt = 0
-                        else:
-                            campus_amt = (campus_days or 0) * 25
-                        room_info = campus_rooms.get(d['cert'], {}).get(campus_name, ('', '', '', '', '', ''))
-                        room_name, price_code, medi_code, free_list, cin, cout = room_info
-                        # 对方数据只在首行显示
-                        if ci == 0:
-                            other_disp_row = other_display
-                            other_amt_row = round(d['other_amt'] or 0)
-                            diff_days_row = (d['ams_days_total'] or 0) - (d['other_days'] or 0)
-                            diff_amt_row = round((d['other_amt'] or 0) - (d['ams_amt'] or 0))
-                        else:
-                            other_disp_row = ''
-                            other_amt_row = ''
-                            diff_days_row = ''
-                            diff_amt_row = ''
-                        ws_det.append([export_name, d.get('cert', ''), d.get('mobile', ''), campus_show,
-                                       month[5:] + '月' if month else '',
-                                       campus_days, other_disp_row, diff_days_row,
-                                       campus_amt, other_amt_row, diff_amt_row, status, reason,
-                                       final_days, final_amt if final_amt == '' else round(final_amt)])
-                    # 合计行（高亮）
-                    # 合计行姓名保持纯姓名，"合计"只放在校区列，避免导出后人名被拼接。
-                    ws_det.append([export_name, d.get('cert', ''), d.get('mobile', ''), '合计', '合计',
-                                   d['ams_days_total'], other_display, (d['ams_days_total'] or 0) - (d['other_days'] or 0),
-                                   round(d['ams_amt'] or 0), round(d['other_amt'] or 0),
-                                   round((d['other_amt'] or 0) - (d['ams_amt'] or 0)), status, reason,
-                                   final_days, final_amt if final_amt == '' else round(final_amt)])
-                    # 合计行加粗高亮
-                    last_row = ws_det.max_row
-                    for col in range(1, ws_det.max_column + 1):
-                        ws_det.cell(row=last_row, column=col).font = Font(bold=True)
-                        ws_det.cell(row=last_row, column=col).fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
-                    # 人员之间留出空白行，避免连续人员的明细视觉上混在一起。
-                    ws_det.append([])
-                    ws_det.row_dimensions[ws_det.max_row].height = 7
+                    main_campus = d.get('campus') or ''
+                campus_show = (main_campus or '').replace('上岸公寓', '').replace('校区', '')
+                month_cells = [month_days_map[m] if month_days_map[m] > 0 else '' for m in range(1, 13)]
+                ws_det.append([export_name, d.get('cert', ''), d.get('mobile', ''), campus_show,
+                               *month_cells,
+                               d['ams_days_total'], other_display, (d['ams_days_total'] or 0) - (d['other_days'] or 0),
+                               round(d['ams_amt'] or 0), round(d['other_amt'] or 0),
+                               round((d['other_amt'] or 0) - (d['ams_amt'] or 0)), status, reason,
+                               final_days, final_amt if final_amt == '' else round(final_amt)])
 
                 if status == '一致':
                     match_count += 1
