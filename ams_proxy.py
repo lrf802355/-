@@ -141,6 +141,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.board_import()
         elif path == "/api/room/clean":
             self.room_clean()
+        elif path.startswith("/api/"):
+            api_path = path[4:]
+            if parsed_path.query:
+                api_path += "?" + parsed_path.query
+            self.proxy_api_post(api_path)
         else:
             self.send_error(404)
 
@@ -156,6 +161,38 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.proxy_api_put(api_path)
         else:
             self.send_error(404)
+
+    def proxy_api_post(self, api_path):
+        """转发POST请求到AMS（带body）"""
+        import urllib.request as urlreq
+        token = self.get_token()
+        if not token:
+            return self.send_json({"code": 401, "msg": "未登录，请先扫码登录"}, 401)
+
+        from urllib.parse import urlparse
+        parsed = urlparse(api_path)
+        url = f"{AMS_BASE}{parsed.path}"
+        if parsed.query:
+            url += "?" + parsed.query
+
+        # 读取body
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length) if content_length else b''
+
+        req = urlreq.Request(url, data=body or None, method="POST", headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": self.headers.get('Content-Type', 'application/json'),
+            "User-Agent": "Mozilla/5.0"
+        })
+        try:
+            with urlreq.urlopen(req, timeout=30) as resp:
+                d = json.loads(resp.read().decode())
+            return self.send_json(d)
+        except urllib.error.HTTPError as e:
+            body_resp = e.read().decode(errors='replace')
+            return self.send_json({"code": e.code, "msg": f"AMS错误: {body_resp[:200]}"}, 200)
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": f"转发失败: {e}"}, 500)
 
     def proxy_api_put(self, api_path):
         """转发PUT请求到AMS"""

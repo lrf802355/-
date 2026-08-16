@@ -1832,15 +1832,25 @@
                 }
                 list.style.display = 'block';
                 count.textContent = all.length + ' 个脏床';
-                document.getElementById('dirtyBody').innerHTML = all.map(r =>
-                    '<tr>' +
-                    '<td>' + (r.hname || '').replace('上岸公寓','').replace('校区','') + '</td>' +
-                    '<td class="name-cell">' + (r.room.roomName || '') + '</td>' +
-                    '<td>' + (r.room.bedNum || 1) + '床</td>' +
-                    '<td style="color:#f53f3f">🛏️ 脏房</td>' +
-                    '<td><button class="btn" style="background:#00b42a;color:#fff;border:none;padding:6px 14px;border-radius:6px" onclick="cleanRoom(\'' + r.hid + '\',\'' + (r.room.roomCode||'') + '\',\'' + (r.room.roomName||'') + '\')">🧹 打扫完成</button></td>' +
-                    '</tr>'
-                ).join('');
+                document.getElementById('dirtyBody').innerHTML = all.map(r => {
+                    const locked = r.room.roomLockStatus === 0; // 0=锁定
+                    const rc = r.room.roomCode || '';
+                    const rn = r.room.roomName || '';
+                    let btns = '';
+                    if (locked) {
+                        btns = '<button class="btn" style="background:#fa8c16;color:#fff;border:none;padding:6px 14px;border-radius:6px" onclick="bedAction(\'unlock\',\'' + r.hid + '\',\'' + rc + '\',\'' + rn + '\')">🔓 解锁</button>';
+                    } else {
+                        btns = '<button class="btn" style="background:#00b42a;color:#fff;border:none;padding:6px 14px;border-radius:6px;margin-right:6px" onclick="bedAction(\'clean\',\'' + r.hid + '\',\'' + rc + '\',\'' + rn + '\')">🧹 打扫</button>' +
+                               '<button class="btn" style="background:#3370ff;color:#fff;border:none;padding:6px 14px;border-radius:6px" onclick="bedAction(\'lock\',\'' + r.hid + '\',\'' + rc + '\',\'' + rn + '\')">🔒 锁定</button>';
+                    }
+                    return '<tr>' +
+                        '<td>' + (r.hname || '').replace('上岸公寓','').replace('校区','') + '</td>' +
+                        '<td class="name-cell">' + rn + '</td>' +
+                        '<td>' + (r.room.bedNum || 1) + '床</td>' +
+                        '<td style="color:' + (locked ? '#fa8c16' : '#f53f3f') + '">' + (locked ? '🔒 锁定脏房' : '🛏️ 脏房') + '</td>' +
+                        '<td>' + btns + '</td>' +
+                        '</tr>';
+                }).join('');
             } catch(e) {
                 loading.style.display = 'none';
                 loading.textContent = '加载失败: ' + e.message;
@@ -1848,23 +1858,37 @@
             }
         }
 
-        async function cleanRoom(hotelId, roomCode, roomName) {
-            if (!confirm('确认 "' + roomName + '" 已打扫完成？')) return;
+        // 床位操作：unlock解锁 / clean打扫 / lock锁定（3个独立动作）
+        async function bedAction(action, hotelId, roomCode, roomName) {
+            const labels = {unlock:'解锁', clean:'打扫', lock:'锁定'};
+            if (!confirm('确认对 "' + roomName + '" 执行"'+ labels[action] +'"操作？')) return;
             try {
-                const r = await fetch('/api/room/clean', {
-                    method: 'POST',
+                let url, method = 'POST';
+                if (action === 'clean') {
+                    url = '/api/room/clean';
+                    method = 'POST';
+                } else if (action === 'unlock') {
+                    url = '/api/hotel/web/basics/room/unLockRoom/' + hotelId;
+                } else {
+                    url = '/api/hotel/web/basics/room/lockRoom/' + hotelId;
+                }
+                const body = action === 'clean'
+                    ? {hotelId: hotelId, roomCode: roomCode}
+                    : {hotelId: hotelId, roomCode: roomCode, remark: (action === 'lock' ? '单住' : '解锁备注')};
+                const r = await fetch(url, {
+                    method: method,
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({hotelId: hotelId, roomCode: roomCode})
+                    body: JSON.stringify(body)
                 });
                 const d = await r.json();
                 if (d.code === 200) {
-                    alert('✅ ' + roomName + ' 打扫完成！');
+                    alert('✅ ' + roomName + ' ' + labels[action] + '成功！');
                 } else {
                     alert('⚠️ ' + (d.msg || '操作失败') + (d.code === 601 ? '（可能已是干净房）' : ''));
                 }
                 fetchDirtyRooms();
             } catch(e) {
-                alert('❌ 打扫失败: ' + e.message);
+                alert('❌ 操作失败: ' + e.message);
             }
         }
 
