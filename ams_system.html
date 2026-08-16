@@ -1804,6 +1804,19 @@
         async function fetchDirtyRooms() {
             const campusSel = document.getElementById('cleanCampus');
             const hotelId = campusSel ? campusSel.value : '';
+            // 一键打扫按钮联动：全部校区时置灰
+            const cleanAllBtn = document.getElementById('cleanAllBtn');
+            if (cleanAllBtn) {
+                if (!hotelId) {
+                    cleanAllBtn.disabled = true;
+                    cleanAllBtn.style.opacity = '0.5';
+                    cleanAllBtn.title = '请先选择单个校区';
+                } else {
+                    cleanAllBtn.disabled = false;
+                    cleanAllBtn.style.opacity = '1';
+                    cleanAllBtn.title = '';
+                }
+            }
             const loading = document.getElementById('dirtyLoading');
             const list = document.getElementById('dirtyList');
             const empty = document.getElementById('dirtyEmpty');
