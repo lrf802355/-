@@ -727,6 +727,28 @@
                 </select>
                 <button class="btn btn-primary" onclick="fetchRooms()">🔄 刷新</button>
             </div>
+
+            <!-- 打扫管理 -->
+            <div class="card" style="margin-bottom:16px">
+                <h2>🧹 打扫管理 <span style="font-size:0.7rem;color:#86909c;font-weight:normal">（脏房打扫完成→点击按钮→自动改干净房+写日志）</span></h2>
+                <div style="display:flex;gap:12px;margin:10px 0;flex-wrap:wrap;align-items:center">
+                    <select id="cleanCampus" class="ctrl" onchange="fetchDirtyRooms()">
+                        <option value="">全部校区</option>
+                    </select>
+                    <button class="btn" onclick="fetchDirtyRooms()">🔄 刷新脏床</button>
+                    <span id="dirtyCount" style="font-size:0.8rem;color:#86909c"></span>
+                </div>
+                <div id="dirtyLoading" class="loading" style="display:none">加载脏床...</div>
+                <div id="dirtyList" style="display:none;overflow-x:auto">
+                    <table>
+                        <thead>
+                            <tr><th>校区</th><th>床位</th><th>房型</th><th>状态</th><th>操作</th></tr>
+                        </thead>
+                        <tbody id="dirtyBody"></tbody>
+                    </table>
+                </div>
+                <div id="dirtyEmpty" style="display:none;padding:20px;text-align:center;color:#00b42a;font-size:0.9rem">🎉 没有脏房，全部打扫干净了！</div>
+            </div>
             <div id="roomLoading" class="loading">请选择校区</div>
             <div id="roomContent" style="display:none">
                 <div style="display:flex;gap:16px;flex-wrap:wrap">
@@ -1765,11 +1787,86 @@
             if (sel.options.length <= 1) {
                 HOTELS.forEach(h => sel.innerHTML += '<option value="' + h.id + '">' + h.name + '</option>');
             }
+            const csel = document.getElementById('cleanCampus');
+            if (csel && csel.options.length <= 1) {
+                HOTELS.forEach(h => csel.innerHTML += '<option value="' + h.id + '">' + h.name + '</option>');
+            }
+            // 加载脏床列表
+            setTimeout(fetchDirtyRooms, 200);
         }
 
         // 当前选中的楼层
         var currentFloor = null;
         var floorRoomsCache = {}; // 校区ID -> 楼层名 -> 房间数组
+
+        // ===== 打扫管理 =====
+        async function fetchDirtyRooms() {
+            const campusSel = document.getElementById('cleanCampus');
+            const hotelId = campusSel ? campusSel.value : '';
+            const loading = document.getElementById('dirtyLoading');
+            const list = document.getElementById('dirtyList');
+            const empty = document.getElementById('dirtyEmpty');
+            const count = document.getElementById('dirtyCount');
+            loading.style.display = 'block';
+            list.style.display = 'none';
+            empty.style.display = 'none';
+            try {
+                // 并行拉所有校区房间（或指定校区）
+                const ids = hotelId ? [hotelId] : HOTELS.map(h => h.id);
+                const all = [];
+                for (const hid of ids) {
+                    const campusData = await getCampusData(hid);
+                    const h = HOTELS.find(x => x.id === hid);
+                    const rooms = campusData.rooms || [];
+                    rooms.forEach(r => {
+                        if (r.roomStateCode === 'VD') {
+                            all.push({hid, hname: h ? h.name : '', room: r});
+                        }
+                    });
+                }
+                loading.style.display = 'none';
+                if (all.length === 0) {
+                    empty.style.display = 'block';
+                    count.textContent = '0 个脏床';
+                    return;
+                }
+                list.style.display = 'block';
+                count.textContent = all.length + ' 个脏床';
+                document.getElementById('dirtyBody').innerHTML = all.map(r =>
+                    '<tr>' +
+                    '<td>' + (r.hname || '').replace('上岸公寓','').replace('校区','') + '</td>' +
+                    '<td class="name-cell">' + (r.room.roomName || '') + '</td>' +
+                    '<td>' + (r.room.bedNum || 1) + '床</td>' +
+                    '<td style="color:#f53f3f">🛏️ 脏房</td>' +
+                    '<td><button class="btn" style="background:#00b42a;color:#fff;border:none;padding:6px 14px;border-radius:6px" onclick="cleanRoom(\'' + r.hid + '\',\'' + (r.room.roomCode||'') + '\',\'' + (r.room.roomName||'') + '\')">🧹 打扫完成</button></td>' +
+                    '</tr>'
+                ).join('');
+            } catch(e) {
+                loading.style.display = 'none';
+                loading.textContent = '加载失败: ' + e.message;
+                loading.style.color = '#f53f3f';
+            }
+        }
+
+        async function cleanRoom(hotelId, roomCode, roomName) {
+            if (!confirm('确认 "' + roomName + '" 已打扫完成？')) return;
+            try {
+                const r = await fetch('/api/room/clean', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({hotelId: hotelId, roomCode: roomCode})
+                });
+                const d = await r.json();
+                if (d.code === 200) {
+                    alert('✅ ' + roomName + ' 打扫完成！');
+                } else {
+                    alert('⚠️ ' + (d.msg || '操作失败') + (d.code === 601 ? '（可能已是干净房）' : ''));
+                }
+                fetchDirtyRooms();
+            } catch(e) {
+                alert('❌ 打扫失败: ' + e.message);
+            }
+        }
 
         async function fetchRooms() {
             const hotelId = document.getElementById('roomCampus').value;

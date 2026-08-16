@@ -139,6 +139,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.linen_init_inventory()
         elif path == "/api/board/import":
             self.board_import()
+        elif path == "/api/room/clean":
+            self.room_clean()
         else:
             self.send_error(404)
 
@@ -939,6 +941,64 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return self.send_json({"code": 200, "records": rows})
         except Exception as e:
             return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def room_clean(self):
+        """打扫房间：调用AMS breamRoom接口（脏房→干净房，会写日志）
+        body: {hotelId, roomCode} 或 {hotelId, roomName}
+        """
+        import urllib.request as urlreq
+        content_length = int(self.headers.get('Content-Length', 0))
+        try:
+            data = json.loads(self.rfile.read(content_length).decode())
+        except Exception:
+            return self.send_json({"code": 400, "msg": "参数错误"}, 400)
+
+        hotel_id = data.get('hotelId') or data.get('hotel_id')
+        room_code = data.get('roomCode') or data.get('room_code')
+        room_name = data.get('roomName') or data.get('room_name')
+
+        if not hotel_id:
+            return self.send_json({"code": 400, "msg": "缺少hotelId"}, 400)
+
+        token = self.get_token()
+        if not token:
+            return self.send_json({"code": 401, "msg": "未登录，请先扫码登录"}, 401)
+
+        # 如果给了roomName，先查roomCode
+        if not room_code and room_name:
+            try:
+                conn = self._db()
+                c = conn.cursor()
+                c.execute("SELECT roomCode FROM room_data WHERE hotelId=? AND roomName LIKE ?", (hotel_id, f"%{room_name}%"))
+                r = c.fetchone()
+                conn.close()
+                if r:
+                    room_code = r[0]
+                else:
+                    return self.send_json({"code": 404, "msg": f"未找到房间: {room_name}"}, 404)
+            except Exception:
+                pass  # 本地没room_data表，交给AMS按名称查
+
+        if not room_code:
+            return self.send_json({"code": 400, "msg": "缺少roomCode或roomName"}, 400)
+
+        # 调AMS breamRoom
+        url = f"{AMS_BASE}/hotel/web/basics/room/breamRoom/{hotel_id}"
+        payload = json.dumps({"hotelId": hotel_id, "roomCode": room_code}).encode()
+        req = urlreq.Request(url, data=payload, method="PUT", headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0"
+        })
+        try:
+            with urlreq.urlopen(req, timeout=30) as resp:
+                d = json.loads(resp.read().decode())
+            return self.send_json(d)
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors='replace')
+            return self.send_json({"code": e.code, "msg": f"AMS错误: {body[:200]}"}, 200)
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": f"打扫失败: {e}"}, 500)
 
     def board_import(self):
         """导入对方Excel（上传文件，解析身份证/姓名/包住天数，更新对比数据）
