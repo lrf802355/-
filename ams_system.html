@@ -736,6 +736,7 @@
                         <option value="">全部校区</option>
                     </select>
                     <button class="btn" onclick="fetchDirtyRooms()">🔄 刷新脏床</button>
+                    <button class="btn" style="background:#00b42a;color:#fff;border:none" onclick="cleanAllInCampus()" id="cleanAllBtn">🧹 一键打扫本校区</button>
                     <span id="dirtyCount" style="font-size:0.8rem;color:#86909c"></span>
                 </div>
                 <div id="dirtyLoading" class="loading" style="display:none">加载脏床...</div>
@@ -1889,6 +1890,51 @@
                 fetchDirtyRooms();
             } catch(e) {
                 alert('❌ 操作失败: ' + e.message);
+            }
+        }
+
+        // 一键打扫本校区（所有未锁定脏床）
+        async function cleanAllInCampus() {
+            const campusSel = document.getElementById('cleanCampus');
+            const hotelId = campusSel ? campusSel.value : '';
+            if (!hotelId) {
+                alert('⚠️ 请先选择校区（一键打扫只针对单个校区）');
+                return;
+            }
+            // 获取该校区未锁定脏床
+            const campusData = await getCampusData(hotelId);
+            const rooms = (campusData.rooms || []).filter(r => r.roomStateCode === 'VD' && r.roomLockStatus === 1);
+            if (rooms.length === 0) {
+                alert('🎉 该校区没有可打扫的脏床（未锁定）');
+                return;
+            }
+            const h = HOTELS.find(x => x.id === hotelId);
+            if (!confirm('确认一键打扫 ' + (h ? h.name : '本校区') + ' 的 ' + rooms.length + ' 个脏床？\n（锁定的床自动跳过）')) return;
+
+            const btn = document.getElementById('cleanAllBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ 打扫中...';
+            let ok = 0, fail = 0, fails = [];
+            try {
+                for (const r of rooms) {
+                    try {
+                        const res = await fetch('/api/room/clean', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({hotelId: hotelId, roomCode: r.roomCode})
+                        });
+                        const d = await res.json();
+                        if (d.code === 200) ok++;
+                        else { fail++; fails.push((r.roomName || '') + '(' + (d.msg || '失败') + ')'); }
+                    } catch(e) {
+                        fail++; fails.push((r.roomName || '') + '(' + e.message + ')');
+                    }
+                }
+                alert('✅ 一键打扫完成！\n成功：' + ok + ' 个\n失败：' + fail + ' 个' + (fails.length ? '\n' + fails.join('\n') : ''));
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🧹 一键打扫本校区';
+                fetchDirtyRooms();
             }
         }
 
