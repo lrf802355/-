@@ -671,28 +671,6 @@
             <h1>📊 基本信息</h1>
             <button class="btn btn-primary" onclick="clearCampusCache();fetchInfo()" style="margin-bottom:16px">🔄 刷新数据</button>
 
-                <div class="card">
-                    <h2>📅 校区启用时间</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>校区</th>
-                            <th>启用时间</th>
-                            <th>运营时长</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td class="name-cell">上岸公寓B座</td><td>2022年4月</td><td id="duration_10144">-</td></tr>
-                        <tr><td class="name-cell">上岸公寓C座</td><td>2023年5月</td><td id="duration_10137">-</td></tr>
-                        <tr><td class="name-cell">嵘泰校区</td><td>2023年11月</td><td id="duration_10138">-</td></tr>
-                        <tr><td class="name-cell">塔利北校区</td><td>2024年10月</td><td id="duration_10139">-</td></tr>
-                        <tr><td class="name-cell">塔利南校区</td><td>2024年12月</td><td id="duration_10140">-</td></tr>
-                        <tr><td class="name-cell">小新公寓</td><td>2025年2月</td><td id="duration_10145">-</td></tr>
-                        <tr><td class="name-cell">景然力沃校区</td><td>2025年2月/4月</td><td id="duration_10148">-</td></tr>
-                        <tr><td class="name-cell">上岸公寓D座</td><td>2026年2月</td><td id="duration_10143">-</td></tr>
-                    </tbody>
-                </table>
-                </div>
             <div id="infoLoading" class="loading">加载中...</div>
             <div id="infoContent" style="display:none">
                 <table>
@@ -1353,27 +1331,7 @@
         // loadQR 已移除（函数未定义）
 
         function calcDuration() {
-            const starts = {
-                '10144': '2022-04-01',
-                '10137': '2023-05-01',
-                '10138': '2023-11-01',
-                '10139': '2024-10-01',
-                '10140': '2024-12-01',
-                '10145': '2025-02-01',
-                '10148': '2025-02-01',
-                '10143': '2026-02-01'
-            };
-            const now = new Date();
-            for (const [id, startStr] of Object.entries(starts)) {
-                const start = new Date(startStr);
-                const months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-                const years = Math.floor(months / 12);
-                const remainMonths = months % 12;
-                const el = document.getElementById('duration_' + id);
-                if (el) {
-                    el.textContent = years > 0 ? years + '年' + remainMonths + '个月' : remainMonths + '个月';
-                }
-            }
+            // 校区启用时间子模块已删除，运营时长不再计算
         }
         
         let fetching = false;  // 数据汇总加载锁（2026-08-12修复：之前未声明导致ReferenceError）
