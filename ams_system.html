@@ -1175,7 +1175,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>序号</th><th>姓名</th><th>校区</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+                            <th>序号</th><th>姓名</th><th>校区</th><th>1月</th><th>2月</th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th><th>10月</th><th>11月</th><th>12月</th>
                             <th>合计</th><th>对方天数</th><th>天数差</th><th>AMS金额</th><th>对方金额</th><th>金额差</th><th>状态</th><th>操作</th>
                         </tr>
                     </thead>
@@ -3152,13 +3152,13 @@
                         return m[2] > 0 && monthNum >= startMonthNum && monthNum <= endMonthNum;
                     });
                     const idx = (boardPage-1)*50 + i + 1;
-                    // 各月天数（按月份归列）
-                    const monthDays = {4:0, 5:0, 6:0, 7:0, 8:0};
+                    // 各月天数（1-12月按月份归列）
+                    const monthDays = {1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0};
                     months.forEach(m => {
                         const mn = parseInt((m[0] || '').slice(5, 7), 10);
                         if (monthDays[mn] !== undefined) monthDays[mn] += m[2];
                     });
-                    const monthCells = [4,5,6,7,8].map(mn => {
+                    const monthCells = [1,2,3,4,5,6,7,8,9,10,11,12].map(mn => {
                         const v = monthDays[mn];
                         return '<td class="number" style="' + (v > 0 ? 'font-weight:600' : 'color:#c0c4cc') + '">' + (v > 0 ? v : '-') + '</td>';
                     }).join('');
