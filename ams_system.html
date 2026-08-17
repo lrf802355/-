@@ -2110,7 +2110,7 @@
                     const g = floorGroups[key];
                     const label = g.building + ' ' + g.floorName;
                     const active = currentFloor === key ? ' style="background:rgba(56,189,248,0.15);border-left-color:#38bdf8;color:#38bdf8"' : '';
-                    treeHtml += '<div class="nav-item" onclick="selectFloor(\'' + key.replace(/'/g, "\\'") + '\')" style="padding:8px 10px;border-left:3px solid transparent;cursor:pointer;font-size:0.8rem;border-radius:6px;margin:2px 0"' + active + '>' +
+                    treeHtml += '<div class="nav-item" data-fk="' + key.replace(/"/g, '&quot;') + '" onclick="selectFloor(\'' + key.replace(/'/g, "\\'") + '\')" style="padding:8px 10px;border-left:3px solid transparent;cursor:pointer;font-size:0.8rem;border-radius:6px;margin:2px 0"' + active + '>' +
                         label + '<br><span style="font-size:0.7rem;color:#94a3b8">' + (g.stats.rooms) + '间/' + (g.stats.beds) + '床</span></div>';
                 });
 
@@ -2139,17 +2139,16 @@
             const g = floorGroups[floorKey];
             if (!g) return;
 
-            // 高亮楼层树
+            // 高亮楼层树（用data-fk精确匹配，避免同楼栋楼层模糊误高亮）
             document.querySelectorAll('#roomFloorTree .nav-item').forEach(el => {
-                el.style.background = '';
-                el.style.borderLeftColor = 'transparent';
-                el.style.color = '';
-            });
-            document.querySelectorAll('#roomFloorTree .nav-item').forEach(el => {
-                if (el.textContent.indexOf(g.floorName) >= 0) {
+                if (el.getAttribute('data-fk') === floorKey) {
                     el.style.background = 'rgba(56,189,248,0.15)';
                     el.style.borderLeftColor = '#38bdf8';
                     el.style.color = '#38bdf8';
+                } else {
+                    el.style.background = '';
+                    el.style.borderLeftColor = 'transparent';
+                    el.style.color = '';
                 }
             });
 
