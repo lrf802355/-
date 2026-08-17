@@ -902,6 +902,7 @@
                                         <th>窗户</th>
                                         <th>性别</th>
                                         <th>状态</th>
+                                        <th>发布</th>
                                     </tr>
                                 </thead>
                                 <tbody id="roomBody"></tbody>
@@ -1410,9 +1411,12 @@
             if (/[A-Za-z]/.test(first)) return first;
             // 第一部分是数字（301、8201）→ 就是房号
             if (/^\d+$/.test(first)) return first;
-            // 第一部分是汉字楼栋名（主楼/东副楼）→ 取下一个数字段
+            // 第一部分是汉字楼栋名（主楼/东副楼）→ 保留"楼栋名-房号"，避免和短名房间冲突
+            // 如：主楼后楼西（女）-101-1 → 主楼后楼西（女）-101（房间），床位-1/-2...
             for (var i = 1; i < parts.length; i++) {
-                if (/^\d+$/.test(parts[i])) return parts[i];
+                if (/^\d+$/.test(parts[i])) {
+                    return parts[0] + '-' + parts[i];
+                }
             }
             return first;
         }
@@ -2076,47 +2080,45 @@
             loading.textContent = '加载中...';
 
             try {
-                const campusData = await getCampusData(hotelId);
-                const rooms = campusData.rooms;
-                const bMap = campusData.bMap;
+                // 用AMS官方treeLazyLoading接口（楼栋→楼层→房间完整结构）
+                const res = await fetch('/api/hotel/web/basics/treeLazyLoading?hotelId=' + hotelId);
+                const d = await res.json();
+                const tree = d.data;
+                if (!tree) throw new Error('无树数据');
 
-                // 按楼层分组（只保留有房间的楼层）
-                const floorGroups = {};
-                rooms.forEach(r => {
-                    const fn = bMap[r.roomFloor] || r.roomFloor || '未知';
-                    if (!floorGroups[fn]) floorGroups[fn] = [];
-                    floorGroups[fn].push(r);
+                // 构建楼层树：楼栋 → 楼层（节点含房间/床位统计）
+                const floorGroups = {};  // 楼层key(楼栋-楼层) -> {building, floor, rooms[], stats}
+                const bldgNodes = (tree.children || []).filter(n => n.nodeType === '1');
+                bldgNodes.forEach(bldg => {
+                    (bldg.children || []).forEach(floor => {
+                        const key = (bldg.nodeName || '') + '|' + (floor.nodeName || '');
+                        const floorRooms = (floor.children || []).filter(n => n.nodeType === '2' || n.roomId);
+                        floorGroups[key] = {
+                            building: bldg.nodeName || '',
+                            floorName: floor.nodeName || '',
+                            rooms: floorRooms,
+                            stats: { rooms: floor.rooms || 0, beds: floor.beds || 0, vacant: floor.vacantBeds || 0, occupied: floor.occupiedBeds || 0, locks: floor.roomLocks || 0 }
+                        };
+                    });
                 });
                 floorRoomsCache[hotelId] = floorGroups;
 
-                // 渲染左侧楼层树（每个楼层显示 房间数/床位数）
-                const floorNames = Object.keys(floorGroups).sort();
-                let treeHtml = '<div style="font-size:0.75rem;color:#94a3b8;margin-bottom:8px;font-weight:600">楼层列表</div>';
-                floorNames.forEach(fn => {
-                    // 统计该楼层（只算已发布房间）
-                    const fr = floorGroups[fn];
-                    const seen = {};
-                    fr.forEach(r => {
-                        const rn = r.roomName || '';
-                        const isSub = rn.includes('-');
-                        const base = normRoomName(rn);
-                        if (!seen[base]) seen[base] = { hasSub: false, mainBedNum: 0, subCount: 0, published: true };
-                        if (r.roomIsPublish === 1 || r.roomIsPublish === '1') seen[base].published = false;
-                        if (isSub) { seen[base].hasSub = true; seen[base].subCount++; }
-                        else { seen[base].mainBedNum = r.bedNum || 0; }
-                    });
-                    const rn = Object.keys(seen).length;
-                    const beds = Object.values(seen).reduce((s, v) => s + (v.published ? (v.hasSub ? v.subCount : v.mainBedNum) : 0), 0);
-                    const active = currentFloor === fn ? ' style="background:rgba(56,189,248,0.15);border-left-color:#38bdf8;color:#38bdf8"' : '';
-                    treeHtml += '<div class="nav-item" onclick="selectFloor(\'' + fn.replace(/'/g, "\\'") + '\')" style="padding:8px 10px;border-left:3px solid transparent;cursor:pointer;font-size:0.8rem;border-radius:6px;margin:2px 0"' + active + '>' +
-                        fn + '<br><span style="font-size:0.7rem;color:#94a3b8">' + rn + '间/' + beds + '床</span></div>';
+                // 渲染左侧楼层树（楼栋-楼层，显示AMS统计）
+                const keys = Object.keys(floorGroups);
+                let treeHtml = '<div style="font-size:0.75rem;color:#94a3b8;margin-bottom:8px;font-weight:600">楼层列表（AMS口径）</div>';
+                keys.forEach(key => {
+                    const g = floorGroups[key];
+                    const label = g.building + ' ' + g.floorName;
+                    const active = currentFloor === key ? ' style="background:rgba(56,189,248,0.15);border-left-color:#38bdf8;color:#38bdf8"' : '';
+                    treeHtml += '<div class="nav-item" onclick="selectFloor(\'' + key.replace(/'/g, "\\'") + '\')" style="padding:8px 10px;border-left:3px solid transparent;cursor:pointer;font-size:0.8rem;border-radius:6px;margin:2px 0"' + active + '>' +
+                        label + '<br><span style="font-size:0.7rem;color:#94a3b8">' + (g.stats.rooms) + '间/' + (g.stats.beds) + '床</span></div>';
                 });
 
                 document.getElementById('roomFloorTree').innerHTML = treeHtml;
 
                 // 默认选中第一个楼层
-                if (floorNames.length > 0) {
-                    selectFloor(floorNames[0]);
+                if (keys.length > 0) {
+                    selectFloor(keys[0]);
                 } else {
                     document.getElementById('roomFloorSummary').textContent = '该校区暂无楼层数据';
                     document.getElementById('roomBody').innerHTML = '';
@@ -2130,11 +2132,12 @@
         }
 
         // 选中楼层 → 渲染右侧房间表
-        function selectFloor(floorName) {
-            currentFloor = floorName;
+        function selectFloor(floorKey) {
+            currentFloor = floorKey;
             const hotelId = document.getElementById('roomCampus').value;
             const floorGroups = floorRoomsCache[hotelId] || {};
-            const floorRooms = floorGroups[floorName] || [];
+            const g = floorGroups[floorKey];
+            if (!g) return;
 
             // 高亮楼层树
             document.querySelectorAll('#roomFloorTree .nav-item').forEach(el => {
@@ -2142,103 +2145,57 @@
                 el.style.borderLeftColor = 'transparent';
                 el.style.color = '';
             });
-
-            // 统计该楼层（只算已发布房间）
-            const seen = {};
-            floorRooms.forEach(room => {
-                const rn = room.roomName || '';
-                const isSub = rn.includes('-');
-                const baseName = normRoomName(rn);
-                if (!seen[baseName]) {
-                    seen[baseName] = { beds: 0, window: "", hasSub: false, mainBedNum: 0, published: true };
+            document.querySelectorAll('#roomFloorTree .nav-item').forEach(el => {
+                if (el.textContent.indexOf(g.floorName) >= 0) {
+                    el.style.background = 'rgba(56,189,248,0.15)';
+                    el.style.borderLeftColor = '#38bdf8';
+                    el.style.color = '#38bdf8';
                 }
-                if (room.roomIsPublish === 1 || room.roomIsPublish === '1') {
-                    seen[baseName].published = false;
-                }
-                if (isSub) {
-                    seen[baseName].beds += 1;
-                    seen[baseName].hasSub = true;
-                } else {
-                    seen[baseName].mainBedNum = (room.bedNum || 1);
-                }
-                const rn2 = room.roomName || '';
-                if (rn2.includes('有窗打不开') && !seen[baseName].window) seen[baseName].window = '有窗打不开';
-                else if (rn2.includes('有窗') && !seen[baseName].window) seen[baseName].window = '有窗';
-                else if (rn2.includes('无窗') && !seen[baseName].window) seen[baseName].window = '无窗';
-            });
-            Object.keys(seen).forEach(k => {
-                if (!seen[k].hasSub && seen[k].mainBedNum > 0) seen[k].beds = seen[k].mainBedNum;
-                if (!seen[k].published) seen[k].beds = 0;
             });
 
-            // 楼层汇总
-            const pubRooms = Object.values(seen).filter(v => v.published).length;
-            const totalBeds = Object.values(seen).reduce((s, v) => s + (v.published ? v.beds : 0), 0);
-            // 类型分布（4人间X/6人间Y/8人间Z）
-            const typeDist = {};
-            Object.values(seen).forEach(v => {
-                if (!v.published) return;
-                const key = v.beds + '人间';
-                typeDist[key] = (typeDist[key] || 0) + 1;
-            });
-            const typeStr = Object.keys(typeDist).sort((a, b) => parseInt(a) - parseInt(b))
-                .map(k => k + '×' + typeDist[k]).join('、');
+            // 楼层汇总（AMS统计）
+            const s = g.stats;
             document.getElementById('roomFloorSummary').innerHTML =
-                '<span><b style="color:#38bdf8">' + floorName + '</b>：' + pubRooms + '间房 / ' + totalBeds + '床（已发布）</span>' +
-                '<span style="color:#94a3b8;font-size:0.75rem">' + typeStr + '</span>' +
-                '<select id="roomTypeFilter" onchange="selectFloor(currentFloor)" class="ctrl-mini">' +
-                '<option value="">全部房型</option>' +
-                '<option value="2">2人间</option><option value="3">3人间</option><option value="4">4人间</option>' +
-                '<option value="5">5人间</option><option value="6">6人间</option><option value="8">8人间</option></select>';
+                '<span style="color:#1f2329;font-weight:600">' + g.building + ' ' + g.floorName + '</span>' +
+                '<span>房间 <b style="color:#3370ff">' + s.rooms + '</b></span>' +
+                '<span>床位 <b style="color:#3370ff">' + s.beds + '</b></span>' +
+                '<span>空床 <b style="color:#00b42a">' + s.vacant + '</b></span>' +
+                '<span>占用 <b style="color:#f53f3f">' + s.occupied + '</b></span>' +
+                '<span>锁定 <b style="color:#fa8c16">' + s.locks + '</b></span>';
 
-            // 读取筛选条件
-            const filterVal = (document.getElementById('roomTypeFilter') || {}).value || '';
-            const filterMap = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '8': 8 };
-
-            // 渲染房间表
-            const sortedRooms = Object.keys(seen).sort();
-            const isMale = floorName.includes('男');
-            const isFemale = floorName.includes('女');
-            const gender = isMale ? '男' : isFemale ? '女' : '-';
+            // 房间列表（直接显示AMS的房间节点）
+            const rooms = g.rooms || [];
+            const gender = g.floorName.includes('男') ? '男' : g.floorName.includes('女') ? '女' : '-';
+            const stateMap = {VC:'空净房', VD:'脏房', OC:'在住', MF:'维修房', KF:'空房', ZR:'钟点房'};
+            const stateColor = {VC:'#4ade80', VD:'#f53f3f', OC:'#fbbf24', MF:'#94a3b8', KF:'#38bdf8', ZR:'#a78bfa'};
+            const pubMap = {'0':'✅ 在用', '1':'❌ 停用'};
+            const pubColor = {'0':'#4ade80', '1':'#f87171'};
 
             let html = '';
-            let filteredCount = 0, filteredBeds = 0;
-            sortedRooms.forEach(roomName => {
-                const room = seen[roomName];
-                // 房型筛选（2/3/4/5/6/8人间）
-                if (filterVal !== '' && room.beds !== filterMap[filterVal]) return;
-                const rowStyle = room.published ? '' : ' style="opacity:0.45;background:rgba(100,116,139,0.08)"';
-                const statusHtml = room.published
-                    ? '<td style="color:#4ade80;font-size:0.75rem">✅ 在用</td>'
-                    : '<td style="color:#f87171;font-size:0.75rem">❌ 停用</td>';
-
-                html += '<tr' + rowStyle + '>';
-                html += '<td class="name-cell">' + roomName + '</td>';
-                html += '<td>' + room.beds + '</td>';
-                html += '<td>' + (room.window || '-') + '</td>';
-                html += '<td>' + gender + '</td>';
-                html += statusHtml;
-                html += '</tr>';
-                if (room.published) { filteredCount++; filteredBeds += room.beds; }
+            rooms.forEach(r => {
+                const st = r.roomStateCode || '';
+                const pub = String(r.roomIsPublish);
+                const lock = r.roomLockStatus === 0 ? ' 🔒' : '';
+                const rowStyle = pub === '0' ? '' : ' style="opacity:0.45;background:rgba(100,116,139,0.08)"';
+                html += '<tr' + rowStyle + '>' +
+                    '<td class="name-cell">' + (r.roomName || '-') + lock + '</td>' +
+                    '<td>' + (r.bedNum || 1) + '</td>' +
+                    '<td>' + (r.roomName && r.roomName.indexOf('有窗打不开') >= 0 ? '有窗打不开' : r.roomName && r.roomName.indexOf('有窗') >= 0 ? '有窗' : r.roomName && r.roomName.indexOf('无窗') >= 0 ? '无窗' : '-') + '</td>' +
+                    '<td>' + gender + '</td>' +
+                    '<td style="color:' + (stateColor[st] || '#94a3b8') + ';font-size:0.75rem">' + (stateMap[st] || st || '-') + '</td>' +
+                    '<td style="color:' + (pubColor[pub] || '#94a3b8') + ';font-size:0.75rem">' + (pubMap[pub] || '-') + '</td>' +
+                    '</tr>';
             });
+            if (!rooms.length) html = '<tr><td colspan="6" style="color:#94a3b8;text-align:center">该楼层暂无房间</td></tr>';
 
-            // 合计行
-            if (filterVal === '') {
-                html += '<tr class="total-row"><td>合计</td>' +
-                    '<td>' + totalBeds + '</td>' +
-                    '<td colspan="3">' + pubRooms + ' 间房</td></tr>';
-            } else {
-                html += '<tr class="total-row"><td>筛选合计</td>' +
-                    '<td>' + filteredBeds + '</td>' +
-                    '<td colspan="3">' + filteredCount + ' 间房</td></tr>';
-            }
+            // 合计
+            html += '<tr class="total-row"><td>合计</td><td>' + s.beds + '</td><td colspan="4">' + s.rooms + ' 间房</td></tr>';
 
             document.getElementById('roomBody').innerHTML = html;
         }
 
         // 本年每月各校区在住人次（从income_flow缓存表聚合）
         function fetchMonthlyOccupancy() {
-            const loading = document.getElementById('occLoading');
             loading.style.display = 'block';
             const body = document.getElementById('occBody');
             body.innerHTML = '<tr><td colspan="14" style="color:#94a3b8">加载中...</td></tr>';
