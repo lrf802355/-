@@ -597,7 +597,8 @@
         <div class="nav-item" onclick="showPage('payroll', event)"><span class="nav-icon">💰</span>工资表</div>
         <div class="nav-item" onclick="showPage('linen', event)"><span class="nav-icon">🧺</span>布草管理</div>
         <div class="nav-item" onclick="showPage('board', event)"><span class="nav-icon">🛏️</span>包住对比</div>
-        <div class="nav-item" onclick="showPage('test', event)"><span class="nav-icon">🧪</span>测试模块</div>
+        <div class="nav-item" onclick="showPage('test', event)"><span class="nav-icon">🗺️</span>校区地图</div>
+        <div class="nav-item" onclick="showPage('bedmanage', event)"><span class="nav-icon">🛏️</span>床位管理</div>
         <div class="sidebar-footer"><strong>工作台 v2.0</strong>数据每 5 分钟自动缓存</div>
     </div>
 
@@ -1175,6 +1176,58 @@
             </div>
             <div id="campusDrillMap" style="width:100%;height:480px;border-radius:10px;border:1px solid #f0f1f2;background:#fafbfc"></div>
         </div>
+
+        <!-- 床位管理页 -->
+        <div id="bedmanage-page" class="page">
+            <h1>🛏️ 床位管理</h1>
+            <div class="page-sub">AMS床位只读查看 + 叫醒登记（生活老师填写，数据存本机）</div>
+
+            <!-- 工具栏 -->
+            <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+                <select id="bmCampus" class="ctrl" onchange="loadBedManage()">
+                    <option value="">选择校区</option>
+                </select>
+                <input type="date" id="bmDate" class="ctrl" value="" onchange="loadBedManage()">
+                <button class="btn btn-primary" onclick="loadBedManage()">🔄 刷新</button>
+                <button class="btn" onclick="showBattleConfig()">⚡ 战斗区配置</button>
+                <span id="bmCount" style="font-size:0.8rem;color:#86909c"></span>
+            </div>
+
+            <!-- 战斗区配置弹窗 -->
+            <div id="battleConfigModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:1000;justify-content:center;align-items:center">
+                <div style="background:#fff;border-radius:14px;padding:20px;width:340px;max-width:90vw">
+                    <h3 style="margin-bottom:12px">⚡ 战斗区楼层配置</h3>
+                    <div style="margin-bottom:12px">
+                        <label style="font-size:0.85rem;color:#4e5969">校区</label>
+                        <select id="bcCampus" class="ctrl" style="width:100%;margin-top:4px"></select>
+                    </div>
+                    <div style="margin-bottom:16px">
+                        <label style="font-size:0.85rem;color:#4e5969">战斗区楼层（勾选）</label>
+                        <div id="bcFloors" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+                    </div>
+                    <div style="display:flex;gap:10px;justify-content:flex-end">
+                        <button class="btn" onclick="document.getElementById('battleConfigModal').style.display='none'">取消</button>
+                        <button class="btn btn-primary" onclick="saveBattleConfig()">保存</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统计卡片 -->
+            <div id="bmStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px"></div>
+
+            <!-- 床位表 -->
+            <div style="background:#fff;border:1px solid #e5e6eb;border-radius:12px;padding:12px;overflow-x:auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>楼栋</th><th>楼层</th><th>房间</th><th>床位</th><th>性别</th><th>学员</th>
+                            <th>床位状态</th><th>叫醒结果</th><th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bmBody"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script src="/echarts.min.js"></script>
@@ -1307,6 +1360,7 @@
             if (p === 'linen') initLinenPage();
             if (p === 'board') fetchBoard();
             if (p === 'test') { setTimeout(initDrillMap, 300); }
+            if (p === 'bedmanage') initBedManage();
         }
 
         function getPageName(p) {
@@ -3301,6 +3355,207 @@
                     if (c) alert(c.name + '\n本月收入：¥' + c.income.toLocaleString() + '\n收入笔数：' + c.count.toLocaleString() + '\n在住人数：' + c.residents.toLocaleString());
                 }
             });
+        }
+
+        // ========== 床位管理（AMS只读 + 叫醒登记）==========
+        let bmCache = {};  // hotelId -> {bldgName, floorName, rooms[]}
+        let bmZones = {};  // hotelId -> [floors]
+        let bmRecords = {};  // date_hotelId -> {roomCode_bedName: status}
+
+        async function initBedManage() {
+            const sel = document.getElementById('bmCampus');
+            if (sel.options.length <= 1) {
+                HOTELS.forEach(h => sel.innerHTML += '<option value="' + h.id + '">' + h.name + '</option>');
+            }
+            if (!document.getElementById('bmDate').value) {
+                document.getElementById('bmDate').value = new Date().toISOString().slice(0,10);
+            }
+            // 加载战斗区配置
+            try {
+                const r = await fetch('/api/battle/zones');
+                const d = await r.json();
+                (d.data || []).forEach(z => { bmZones[z.hotel_id] = JSON.parse(z.floors || '[]'); });
+            } catch(e) {}
+            loadBedManage();
+        }
+
+        async function loadBedManage() {
+            const hotelId = document.getElementById('bmCampus').value;
+            const date = document.getElementById('bmDate').value;
+            const body = document.getElementById('bmBody');
+            const count = document.getElementById('bmCount');
+            const stats = document.getElementById('bmStats');
+            if (!hotelId) { body.innerHTML = '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">请选择校区</td></tr>'; return; }
+            body.innerHTML = '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">加载中...</td></tr>';
+
+            try {
+                // 1. 拉AMS床位树
+                if (!bmCache[hotelId]) {
+                    const res = await fetch('/api/hotel/web/basics/treeLazyLoading?hotelId=' + hotelId);
+                    const d = await res.json();
+                    bmCache[hotelId] = d.data;
+                }
+                const tree = bmCache[hotelId];
+                const floors = [];
+                const walk = node => {
+                    if (node.nodeType === '2') floors.push({name: node.nodeName, rooms: (node.children||[]).filter(r => r.nodeType==='3' || r.roomId)});
+                    (node.children || []).forEach(walk);
+                };
+                walk(tree);
+                // 展平所有床位
+                const beds = [];
+                floors.forEach(f => {
+                    f.rooms.forEach(r => {
+                        // 房间本身是床位（如 8314-1）或房间下无子
+                        const isBed = (r.roomName || '').includes('-');
+                        const gender = (f.name || '').includes('男') ? '男' : (f.name || '').includes('女') ? '女' : '';
+                        beds.push({
+                            floor: f.name, room: r.roomName || '', roomCode: r.roomCode || '',
+                            bed: isBed ? r.roomName.split('-').pop() : '', student: '',
+                            status: r.roomStateCode || '', gender: gender, isBed: isBed, roomId: r.roomId
+                        });
+                    });
+                });
+
+                // 2. 拉叫醒记录
+                let recMap = {};
+                try {
+                    const r = await fetch('/api/wake/records?date=' + date + '&hotel_id=' + hotelId);
+                    const d = await r.json();
+                    (d.data || []).forEach(rec => {
+                        recMap[rec.room_code + '_' + rec.bed_name] = rec.wake_status;
+                    });
+                } catch(e) {}
+
+                // 3. 渲染
+                const zones = bmZones[hotelId] || [];
+                const stateMap = {VC:'空净床', VD:'脏房', OC:'在住', MF:'维修房', KF:'空房', ZR:'钟点房'};
+                const stateColor = {VC:'#00b42a', VD:'#f53f3f', OC:'#2684ff', MF:'#94a3b8', KF:'#86909c', ZR:'#f59d23'};
+                const isBattle = f => zones.includes(parseInt(f));
+                const wakeBtns = ['应答','未应答','请假','无课'].map(s =>
+                    '<button class="btn wake-btn" style="padding:4px 10px;font-size:0.75rem;min-height:30px;margin:2px;background:#f2f3f5;border:1px solid #e5e6eb;color:#4e5969" onclick="saveWake(\'' + s + '\',\'' + hotelId + '\',\'' + date + '\',this)">' + s + '</button>'
+                ).join('');
+
+                let html = '';
+                beds.forEach((b, i) => {
+                    const battle = isBattle(b.floor);
+                    const wakeKey = b.roomCode + '_' + (b.bed || b.room);
+                    const wk = recMap[wakeKey] || '';
+                    const isOccupied = b.status === 'OC' || b.status === 'ZR';
+                    html += '<tr style="' + (battle ? 'background:#fff7e6' : '') + '" data-rc="' + (b.roomCode||'') + '" data-bed="' + (b.bed||'') + '" data-room="' + (b.room||'') + '" data-stu="' + (b.student||'') + '" data-gen="' + (b.gender||'') + '">' +
+                        '<td>' + (battle ? '⚡' : '') + '</td>' +
+                        '<td>' + b.floor + '</td>' +
+                        '<td>' + b.room + '</td>' +
+                        '<td>' + (b.bed || '-') + '</td>' +
+                        '<td>' + (b.gender || '-') + '</td>' +
+                        '<td>' + (b.student || '-') + '</td>' +
+                        '<td style="color:' + (stateColor[b.status] || '#86909c') + ';font-size:0.75rem">' + (stateMap[b.status] || b.status || '-') + '</td>' +
+                        '<td>' + (wk ? '<span style="color:#3370ff;font-weight:600">' + wk + '</span>' : '<span style="color:#c0c4cc">未登记</span>') + '</td>' +
+                        '<td>' + (isOccupied ? wakeBtns : '<span style="color:#c0c4cc;font-size:0.75rem">非在住</span>') + '</td>' +
+                        '</tr>';
+                });
+                body.innerHTML = html || '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">无床位数据</td></tr>';
+                count.textContent = '共 ' + beds.length + ' 个床位';
+
+                // 4. 统计
+                const stat = {total: beds.length, occupied: beds.filter(b=>b.status==='OC'||b.status==='ZR').length, wake_ok: Object.values(recMap).filter(s=>s==='应答').length, wake_no: Object.values(recMap).filter(s=>s==='未应答').length, wake_leave: Object.values(recMap).filter(s=>s==='请假').length, wake_nc: Object.values(recMap).filter(s=>s==='无课').length, battle: beds.filter(b=>isBattle(b.floor)).length};
+                stats.innerHTML = [
+                    ['总床位', stat.total, '#3370ff'], ['在住', stat.occupied, '#2684ff'],
+                    ['⚡战斗区', stat.battle, '#af6200'], ['应答', stat.wake_ok, '#00b42a'],
+                    ['未应答', stat.wake_no, '#f53f3f'], ['请假', stat.wake_leave, '#f59d23'],
+                    ['无课', stat.wake_nc, '#78869b']
+                ].map(c => '<div style="background:#fff;border:1px solid #e5e6eb;border-radius:10px;padding:12px;text-align:center">' +
+                    '<div style="font-size:0.75rem;color:#86909c">' + c[0] + '</div>' +
+                    '<div style="font-size:1.4rem;font-weight:800;color:' + c[2] + '">' + c[1] + '</div></div>').join('');
+            } catch(e) {
+                body.innerHTML = '<tr><td colspan="9" style="color:#f53f3f;text-align:center;padding:30px">加载失败: ' + e.message + '</td></tr>';
+            }
+        }
+
+        async function saveWake(status, hotelId, date, btn) {
+            // 从按钮所在行取数据（用data属性）
+            const tr = btn.closest('tr');
+            const roomCode = tr.getAttribute('data-rc') || '';
+            const bedName = tr.getAttribute('data-bed') || tr.getAttribute('data-room') || '';
+            const roomName = tr.getAttribute('data-room') || '';
+            const studentName = tr.getAttribute('data-stu') || '';
+            const gender = tr.getAttribute('data-gen') || '';
+            if (!roomCode) { alert('数据缺失，无法保存'); return; }
+            try {
+                const r = await fetch('/api/wake/save', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        date: date, hotel_id: hotelId, room_code: roomCode,
+                        room_name: roomName, bed_name: bedName, student_name: studentName,
+                        gender: gender, wake_status: status, operator: '', updated_at: new Date().toLocaleString('zh-CN')
+                    })
+                });
+                const d = await r.json();
+                if (d.code === 200) {
+                    // 更新按钮高亮
+                    tr.querySelectorAll('.wake-btn').forEach(b => {
+                        b.style.background = '#f2f3f5'; b.style.color = '#4e5969'; b.style.fontWeight = 'normal';
+                    });
+                    btn.style.background = '#3370ff'; btn.style.color = '#fff'; btn.style.fontWeight = '700';
+                    loadBedManage();
+                } else alert('❌ ' + (d.msg || '保存失败'));
+            } catch(e) { alert('❌ ' + e.message); }
+        }
+
+        // 战斗区配置
+        function showBattleConfig() {
+            const sel = document.getElementById('bcCampus');
+            sel.innerHTML = '<option value="">选择校区</option>';
+            HOTELS.forEach(h => sel.innerHTML += '<option value="' + h.id + '">' + h.name + '</option>');
+            sel.onchange = loadBattleFloors;
+            document.getElementById('battleConfigModal').style.display = 'flex';
+            loadBattleFloors();
+        }
+        async function loadBattleFloors() {
+            const hotelId = document.getElementById('bcCampus').value;
+            const box = document.getElementById('bcFloors');
+            if (!hotelId) { box.innerHTML = '<span style="color:#c0c4cc">请先选校区</span>'; return; }
+            // 从AMS树拿楼层
+            try {
+                if (!bmCache[hotelId]) {
+                    const res = await fetch('/api/hotel/web/basics/treeLazyLoading?hotelId=' + hotelId);
+                    const d = await res.json();
+                    bmCache[hotelId] = d.data;
+                }
+                const tree = bmCache[hotelId];
+                const floorSet = {};
+                const walk = node => {
+                    if (node.nodeType === '2') floorSet[node.nodeName] = true;
+                    (node.children || []).forEach(walk);
+                };
+                walk(tree);
+                const floors = Object.keys(floorSet).map(f => parseInt(f)).filter(f => !isNaN(f)).sort((a,b)=>a-b);
+                const saved = bmZones[hotelId] || [];
+                box.innerHTML = floors.map(f =>
+                    '<label style="display:flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid #e5e6eb;border-radius:8px;cursor:pointer;background:' + (saved.includes(f) ? '#fff7e6' : '#fff') + '">' +
+                    '<input type="checkbox" value="' + f + '" ' + (saved.includes(f) ? 'checked' : '') + ' onchange="this.parentElement.style.background=this.checked?\'#fff7e6\':\'#fff\'">' + f + '楼</label>'
+                ).join('') || '<span style="color:#c0c4cc">无楼层数据</span>';
+            } catch(e) {
+                box.innerHTML = '<span style="color:#f53f3f">加载失败: ' + e.message + '</span>';
+            }
+        }
+        async function saveBattleConfig() {
+            const hotelId = document.getElementById('bcCampus').value;
+            if (!hotelId) { alert('请选择校区'); return; }
+            const floors = [...document.querySelectorAll('#bcFloors input:checked')].map(i => parseInt(i.value));
+            try {
+                const r = await fetch('/api/battle/save', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({hotel_id: hotelId, floors: floors})
+                });
+                const d = await r.json();
+                if (d.code === 200) {
+                    bmZones[hotelId] = floors;
+                    alert('✅ 战斗区配置已保存');
+                    document.getElementById('battleConfigModal').style.display = 'none';
+                    loadBedManage();
+                } else alert('❌ ' + (d.msg || '保存失败'));
+            } catch(e) { alert('❌ ' + e.message); }
         }
 
         window.onload = function() {

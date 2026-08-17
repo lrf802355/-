@@ -99,6 +99,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.board_export(parsed_path.query)
         elif path == "/api/test":
             self.api_test()
+        elif path == "/api/wake/records":
+            self.wake_records(parsed_path.query)
+        elif path == "/api/wake/save":
+            self.wake_save()
+        elif path == "/api/battle/zones":
+            self.battle_zones(parsed_path.query)
+        elif path == "/api/battle/save":
+            self.battle_zones_save()
         elif path.startswith("/api/"):
             api_path = path[4:]
             if parsed_path.query:
@@ -142,6 +150,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.board_import()
         elif path == "/api/room/clean":
             self.room_clean()
+        elif path == "/api/wake/save":
+            self.wake_save()
+        elif path == "/api/battle/save":
+            self.battle_zones_save()
         elif path.startswith("/api/"):
             api_path = path[4:]
             if parsed_path.query:
@@ -1188,6 +1200,123 @@ class ProxyHandler(BaseHTTPRequestHandler):
             rows = [dict(r) for r in c.fetchall()]
             conn.close()
             return self.send_json({"code": 200, "records": rows})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def _wake_db(self):
+        """叫醒记录数据库（独立文件，避免和finance.db混）"""
+        import sqlite3
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wake_data.db")
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute("""CREATE TABLE IF NOT EXISTS wake_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            record_date TEXT NOT NULL,
+            hotel_id TEXT,
+            room_code TEXT,
+            room_name TEXT,
+            bed_name TEXT,
+            student_name TEXT,
+            gender TEXT,
+            wake_status TEXT,
+            operator TEXT,
+            updated_at TEXT
+        )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS battle_zones (
+            hotel_id TEXT PRIMARY KEY,
+            floors TEXT
+        )""")
+        conn.commit()
+        return conn
+
+    def wake_records(self, query_string):
+        """查询叫醒记录：?date=2026-08-17&hotel_id=10145"""
+        from urllib.parse import parse_qs
+        params = parse_qs(query_string)
+        date = params.get('date', [''])[0]
+        hotel_id = params.get('hotel_id', [''])[0]
+        try:
+            import sqlite3
+            conn = self._wake_db()
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            sql = "SELECT * FROM wake_records WHERE 1=1"
+            args = []
+            if date:
+                sql += " AND record_date = ?"
+                args.append(date)
+            if hotel_id:
+                sql += " AND hotel_id = ?"
+                args.append(hotel_id)
+            c.execute(sql, args)
+            rows = [dict(r) for r in c.fetchall()]
+            conn.close()
+            return self.send_json({"code": 200, "data": rows})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def wake_save(self):
+        """保存叫醒记录（单条upsert：日期+房间+床位唯一）"""
+        import json as json_mod
+        content_length = int(self.headers.get('Content-Length', 0))
+        try:
+            d = json_mod.loads(self.rfile.read(content_length).decode())
+        except Exception:
+            return self.send_json({"code": 400, "msg": "参数错误"}, 400)
+        try:
+            conn = self._wake_db()
+            c = conn.cursor()
+            # 删除旧记录（同日期+同房间+同床位）
+            c.execute("DELETE FROM wake_records WHERE record_date=? AND room_code=? AND bed_name=?",
+                      (d.get('date'), d.get('room_code'), d.get('bed_name')))
+            c.execute("""INSERT INTO wake_records (record_date, hotel_id, room_code, room_name, bed_name, student_name, gender, wake_status, operator, updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                      (d.get('date'), d.get('hotel_id'), d.get('room_code'), d.get('room_name'),
+                       d.get('bed_name'), d.get('student_name'), d.get('gender'),
+                       d.get('wake_status'), d.get('operator', ''), d.get('updated_at', '')))
+            conn.commit()
+            conn.close()
+            return self.send_json({"code": 200, "msg": "保存成功"})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def battle_zones(self, query_string):
+        """查询战斗区配置：?hotel_id=10145 或全部"""
+        from urllib.parse import parse_qs
+        params = parse_qs(query_string)
+        hotel_id = params.get('hotel_id', [''])[0]
+        try:
+            import sqlite3
+            conn = self._wake_db()
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            if hotel_id:
+                c.execute("SELECT * FROM battle_zones WHERE hotel_id=?", (hotel_id,))
+            else:
+                c.execute("SELECT * FROM battle_zones")
+            rows = [dict(r) for r in c.fetchall()]
+            conn.close()
+            return self.send_json({"code": 200, "data": rows})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def battle_zones_save(self):
+        """保存战斗区配置：{hotel_id, floors:[5,8]}"""
+        import json as json_mod
+        content_length = int(self.headers.get('Content-Length', 0))
+        try:
+            d = json_mod.loads(self.rfile.read(content_length).decode())
+        except Exception:
+            return self.send_json({"code": 400, "msg": "参数错误"}, 400)
+        try:
+            conn = self._wake_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM battle_zones WHERE hotel_id=?", (d.get('hotel_id'),))
+            c.execute("INSERT INTO battle_zones (hotel_id, floors) VALUES (?,?)",
+                      (d.get('hotel_id'), json_mod.dumps(d.get('floors', []), ensure_ascii=False)))
+            conn.commit()
+            conn.close()
+            return self.send_json({"code": 200, "msg": "保存成功"})
         except Exception as e:
             return self.send_json({"code": 500, "msg": str(e)}, 500)
 
