@@ -1908,18 +1908,32 @@
             const select = document.getElementById('resCampus');
             select.innerHTML = '<option value="">全部校区</option>';
 
-            // 并行请求所有校区
-            const promises = HOTELS.map(async h => {
-                try {
-                    const r = await fetch('/api/hotel/web/business/checkOrder/listAcc/' + h.id + '?pageSize=500');
-                    const d = await r.json();
-                    const rows = d.rows || [];
-                    rows.forEach(row => row._campusName = h.name);
-                    return rows;
-                } catch(e) { return []; }
-            });
-            const results = await Promise.all(promises);
-            allResidents = results.flat();
+            // 优先从本地快照缓存加载（每天7点抓取入库），本地没有时才实时调AMS
+            let results = null;
+            try {
+                const r = await fetch('/api/residents/snapshot?detail=1');
+                const d = await r.json();
+                if (d.code === 200 && d.records && d.records.length && d.records[0].name) {
+                    allResidents = d.records;
+                    results = HOTELS.map(h => d.records.filter(p => p._campusName === h.name));
+                }
+            } catch(e) {}
+
+            if (!results) {
+                // 本地无快照，回退到实时拉取AMS
+                const promises = HOTELS.map(async h => {
+                    try {
+                        const r = await fetch('/api/hotel/web/business/checkOrder/listAcc/' + h.id + '?pageSize=500');
+                        const d = await r.json();
+                        const rows = d.rows || [];
+                        rows.forEach(row => row._campusName = h.name);
+                        return rows;
+                    } catch(e) { return []; }
+                });
+                const res = await Promise.all(promises);
+                allResidents = res.flat();
+                results = res;
+            }
 
             // 填充校区下拉
             HOTELS.forEach((h, i) => {
@@ -1933,7 +1947,6 @@
             filterResidents();
             resFetching = false;
         }
-
         let resDebounce = null;
         function filterResidents() {
             clearTimeout(resDebounce);

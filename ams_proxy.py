@@ -648,27 +648,48 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
     def residents_snapshot(self, query_string):
         """读取每日在住快照（从daily_residents表），返回指定日期各校区在住人数
-        query: date=YYYY-MM-DD（默认最近一天）
+        query: date=YYYY-MM-DD（默认最近一天），detail=1 返回完整在住名单（本地缓存，不实时调AMS）
         """
         from urllib.parse import parse_qs
         try:
             params = parse_qs(query_string)
             date = params.get('date', [None])[0]
+            detail = (params.get('detail', ['0'])[0] == '1')
 
             conn = self._db()
             c = conn.cursor()
             if date:
-                c.execute("SELECT snap_date, hotel_id, hotel_name, resident_count FROM daily_residents WHERE snap_date=? ORDER BY hotel_id", (date,))
+                c.execute("SELECT snap_date, hotel_id, hotel_name, resident_count, raw_json FROM daily_residents WHERE snap_date=? ORDER BY hotel_id", (date,))
             else:
-                c.execute("""SELECT snap_date, hotel_id, hotel_name, resident_count FROM daily_residents
+                c.execute("""SELECT snap_date, hotel_id, hotel_name, resident_count, raw_json FROM daily_residents
                              WHERE snap_date = (SELECT MAX(snap_date) FROM daily_residents)
                              ORDER BY hotel_id""")
             rows = [dict(r) for r in c.fetchall()]
             conn.close()
-            return self.send_json({"code": 200, "records": rows})
+
+            if not detail:
+                records = [{"snap_date": r["snap_date"], "hotel_id": r["hotel_id"],
+                            "hotel_name": r["hotel_name"], "resident_count": r["resident_count"]} for r in rows]
+            else:
+                import json as _json
+                records = []
+                for r in rows:
+                    people = []
+                    try:
+                        raw = r.get("raw_json")
+                        if raw:
+                            people = _json.loads(raw) if isinstance(raw, str) else raw
+                    except Exception:
+                        people = []
+                    for p in people or []:
+                        if isinstance(p, dict):
+                            p = dict(p)
+                            p["_campusName"] = r["hotel_name"]
+                            records.append(p)
+            return self.send_json({"code": 200, "records": records,
+                                   "snap_date": rows[0]["snap_date"] if rows else None})
         except Exception as e:
             return self.send_json({"code": 500, "msg": str(e)}, 500)
-
     def income_summary(self, query_string):
         """本地收入汇总（从income_flow表统计，毫秒级，替代AMS实时接口4.5秒）
         query: hotel_id=10144&start=2026-08-01&end=2026-08-11
