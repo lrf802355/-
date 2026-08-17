@@ -1964,13 +1964,14 @@
             list.style.display = 'none';
             empty.style.display = 'none';
             try {
-                // 并行拉所有校区房间（或指定校区）
+                // 并行拉所有校区房间（或指定校区）——直接用接口拉最新，不走getCampusData缓存
                 const ids = hotelId ? [hotelId] : HOTELS.map(h => h.id);
                 const all = [];
                 for (const hid of ids) {
-                    const campusData = await getCampusData(hid);
+                    const res = await fetch('/api/hotel/web/basics/room/list/' + hid);
+                    const dd = await res.json();
+                    const rooms = dd.data || [];
                     const h = HOTELS.find(x => x.id === hid);
-                    const rooms = campusData.rooms || [];
                     rooms.forEach(r => {
                         if (r.roomStateCode === 'VD') {
                             all.push({hid, hname: h ? h.name : '', room: r});
