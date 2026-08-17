@@ -1927,7 +1927,7 @@
                 // 实时模式或本地无快照：直接调AMS拉最新
                 const promises = HOTELS.map(async h => {
                     try {
-                        const r = await fetch('/api/hotel/web/business/checkOrder/listAcc/' + h.id + '?pageSize=500');
+                        const r = await fetch('/api/hotel/web/business/checkOrder/listAcc/' + h.id + '?pageSize=2000');
                         const d = await r.json();
                         const rows = d.rows || [];
                         rows.forEach(row => row._campusName = h.name);
@@ -3456,16 +3456,41 @@
                     (node.children || []).forEach(walk);
                 };
                 walk(tree);
+                // 1.5 拉在住名单（pageSize=2000 拿全量），用于显示学员姓名
+                let resExact = {}, resNorm = {}, resNum = {};
+                try {
+                    const r = await fetch('/api/hotel/web/business/checkOrder/listAcc/' + hotelId + '?pageSize=2000');
+                    const d = await r.json();
+                    (d.rows || []).forEach(p => {
+                        const rn = p.roomName || '';
+                        const nm = normRoomName(rn);
+                        const person = {name: p.name || '', gsex: p.gsex};
+                        if (rn) { (resExact[rn] = resExact[rn] || []).push(person); }
+                        if (nm) { (resNorm[nm] = resNorm[nm] || []).push(person); }
+                        const m = rn.match(/(\d{2,4})(?:-\d+)?$/);
+                        if (m) { (resNum[m[1]] = resNum[m[1]] || []).push(person); }
+                    });
+                } catch(e) {}
                 // 展平所有床位
                 const beds = [];
                 floors.forEach(f => {
                     f.rooms.forEach(r => {
-                        // 房间本身是床位（如 8314-1）或房间下无子
-                        const isBed = (r.roomName || '').includes('-');
-                        const gender = (f.name || '').includes('男') ? '男' : (f.name || '').includes('女') ? '女' : '';
+                        const rn = r.roomName || '';
+                        const isBed = rn.includes('-');
+                        // 匹配在住学员：精确床位 > 归一化房间 > 纯房号兜底（塔利北）
+                        let occs = [];
+                        if (isBed) occs = resExact[rn] || [];
+                        if (!occs.length) occs = resNorm[normRoomName(rn)] || [];
+                        if (!occs.length) {
+                            const m = rn.match(/(\d{2,4})$/);
+                            if (m) occs = resNum[m[1]] || [];
+                        }
+                        const student = occs.map(o => o.name).join('、');
+                        let gender = (f.name || '').includes('男') ? '男' : (f.name || '').includes('女') ? '女' : '';
+                        if (!gender && occs[0]) gender = occs[0].gsex === '2' ? '女' : occs[0].gsex === '1' ? '男' : '';
                         beds.push({
-                            floor: f.name, room: r.roomName || '', roomCode: r.roomCode || '',
-                            bed: isBed ? r.roomName.split('-').pop() : '', student: '',
+                            floor: f.name, room: rn, roomCode: r.roomCode || '',
+                            bed: isBed ? rn.split('-').pop() : '', student: student,
                             status: r.roomStateCode || '', gender: gender, isBed: isBed, roomId: r.roomId
                         });
                     });
