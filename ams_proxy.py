@@ -79,6 +79,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.linen_init_inventory()
         elif path == "/api/occupancy/yesterday":
             self.query_yesterday_occupancy(parsed_path.query)
+        elif path == "/api/occupancy/refresh":
+            self.occupancy_refresh(parsed_path.query)
         elif path == "/api/residents/snapshot":
             self.residents_snapshot(parsed_path.query)
         elif path == "/api/income/summary":
@@ -438,6 +440,90 @@ class ProxyHandler(BaseHTTPRequestHandler):
             conn.close()
             rows = [{"hotel_id": hid, "day": day, "cnt": cnt} for (hid, day), cnt in sorted(merged.items())]
             return self.send_json({"code": 200, "records": rows, "source": "daily_snapshot_with_income_fallback", "snapshot_rows": snapshot_days})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def occupancy_refresh(self, query_string):
+        """实时刷新在住统计：
+        1. 增量拉取最新收入流水（fetch_income_flow_range.py，从最后一条到今天）
+        2. 可选 live=hotel_id:count,... 更新今日快照人数为实时值
+        3. 强制重建月度预聚合表，返回最新 monthly + daily
+        """
+        from urllib.parse import parse_qs
+        import subprocess, sys
+        from datetime import date, timedelta
+        params = parse_qs(query_string)
+        year = params.get('year', [str(date.today().year)])[0]
+        month = params.get('month', [date.today().strftime('%Y-%m')])[0]
+        try:
+            base = os.path.dirname(os.path.abspath(__file__))
+            script = os.path.join(base, 'fetch_income_flow_range.py')
+            conn = self._db()
+            c = conn.cursor()
+            c.execute("SELECT MAX(create_time) FROM income_flow")
+            row = c.fetchone()
+            conn.close()
+            last = (row[0] or '').split(' ')[0]
+            if not last:
+                last = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d')
+            end = date.today().strftime('%Y-%m-%d')
+            fetch_log = '流水已是最新'
+            if last < end:
+                p = subprocess.run([sys.executable, script, last, end],
+                                   capture_output=True, text=True, encoding='utf-8', errors='replace',
+                                   timeout=900, cwd=base)
+                out = (p.stdout or '')
+                if p.returncode != 0:
+                    out += '\n' + (p.stderr or '')
+                    return self.send_json({"code": 500, "msg": "收入流水拉取失败（可能TOKEN过期）", "log": out[-1200:]}, 500)
+                fetch_log = out[-800:]
+
+            # 可选：更新今日快照人数为实时值
+            live = params.get('live', [None])[0]
+            if live:
+                today = date.today().strftime('%Y-%m-%d')
+                conn = self._db()
+                c = conn.cursor()
+                for pair in live.split(','):
+                    if ':' not in pair:
+                        continue
+                    hid, cnt = pair.split(':', 1)
+                    try:
+                        cnt = int(cnt)
+                    except ValueError:
+                        continue
+                    c.execute("UPDATE daily_residents SET resident_count=? WHERE snap_date=? AND hotel_id=?", (cnt, today, hid))
+                conn.commit()
+                conn.close()
+
+            # 强制重建月度聚合（绕过5分钟缓存）
+            self.__class__._monthly_agg_ts = 0.0
+            self._refresh_monthly_agg()
+
+            # 查询最新 monthly
+            conn = self._db()
+            c = conn.cursor()
+            c.execute("SELECT hotel_name, ym, cnt FROM income_flow_monthly WHERE ym LIKE ? ORDER BY ym, hotel_id", (year + '%',))
+            monthly = [dict(r) for r in c.fetchall()]
+            conn.close()
+
+            # 查询最新 daily
+            conn = self._db()
+            c = conn.cursor()
+            c.execute("""SELECT hotel_id, SUBSTR(create_time, 9, 2) AS day, COUNT(*) AS cnt
+                         FROM income_flow WHERE create_time LIKE ? AND business_type_name != ''
+                           AND business_type_name NOT LIKE '%消费%' AND business_type_name != '起步房价'
+                           AND business_type_name != '超时房价'
+                         GROUP BY hotel_id, day""", (month + '%',))
+            merged = {(str(r['hotel_id']), str(r['day']).zfill(2)): int(r['cnt'] or 0) for r in c.fetchall()}
+            c.execute("""SELECT hotel_id, SUBSTR(snap_date, 9, 2) AS day, resident_count
+                         FROM daily_residents WHERE snap_date LIKE ?""", (month + '%',))
+            for r in c.fetchall():
+                merged[(str(r['hotel_id']), str(r['day']).zfill(2))] = int(r['resident_count'] or 0)
+            conn.close()
+            daily = [{"hotel_id": hid, "day": day, "cnt": cnt} for (hid, day), cnt in sorted(merged.items())]
+
+            return self.send_json({"code": 200, "monthly": monthly, "daily": daily, "log": fetch_log})
         except Exception as e:
             return self.send_json({"code": 500, "msg": str(e)}, 500)
 

@@ -828,7 +828,7 @@
                 </select>
                 <input id="resSearch" type="text" placeholder="搜索姓名/房号/手机号..." oninput="filterResidents()" style="padding:8px 12px;border-radius:6px;border:1px solid #334155;background:#ffffff;color:#e2e8f0;font-size:0.85rem;width:220px">
                 <button class="btn btn-primary" onclick="fetchResidents()">🔍 查询在住</button>
-                <button class="btn" style="background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.4);color:#38bdf8" onclick="fetchResidents(true)">⚡ 实时刷新</button>
+                <button class="btn" style="background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.4);color:#38bdf8" onclick="realTimeRefresh()" title="同时刷新在住名单、本年每月在住人次、每日在住人数明细">⚡ 实时刷新</button>
                 <span id="resCount" style="color:#94a3b8;font-size:0.85rem"></span>
             </div>
             <div id="resLoading" class="loading">点击"查询在住"加载当前在住名单</div>
@@ -1951,6 +1951,41 @@
             content.style.display = 'block';
             filterResidents();
             resFetching = false;
+        }
+
+        // 实时刷新：在住名单 + 本年每月 + 每日明细 全部拉最新
+        async function realTimeRefresh() {
+            const year = new Date().getFullYear();
+            const monthSel = document.getElementById('occMonthSelect');
+            const month = monthSel ? monthSel.value : (year + '-' + String(new Date().getMonth() + 1).padStart(2, '0'));
+            const occLoading = document.getElementById('occLoading');
+            const dailyLoading = document.getElementById('dailyLoading');
+            if (occLoading) { occLoading.style.display = 'block'; occLoading.textContent = '正在实时拉取最新流水并更新统计...'; }
+            if (dailyLoading) { dailyLoading.style.display = 'block'; }
+            try {
+                // 1. 实时拉取在住名单（同时获得各校区实时人数）
+                await fetchResidents(true);
+                const live = HOTELS.map(h => {
+                    const rows = allResidents.filter(p => p._campusName === h.name);
+                    return h.id + ':' + rows.length;
+                }).join(',');
+                // 2. 拉最新收入流水 + 重建月度聚合 + 更新今日快照人数
+                const r = await fetch('/api/occupancy/refresh?year=' + year + '&month=' + month + '&live=' + encodeURIComponent(live));
+                const d = await r.json();
+                if (d.code !== 200) {
+                    alert('实时刷新失败：' + (d.msg || '未知错误') + (d.log ? '\n\n' + d.log : ''));
+                    return;
+                }
+                // 3. 重新渲染月度 + 每日视图
+                fetchMonthlyOccupancy();
+                fetchDailyOccupancy();
+                alert('✅ 实时刷新完成：在住名单、本年每月在住人次、每日在住人数明细已全部更新');
+            } catch(e) {
+                alert('实时刷新失败：' + e.message);
+            } finally {
+                if (occLoading) { occLoading.style.display = 'none'; occLoading.textContent = '加载中...'; }
+                if (dailyLoading) { dailyLoading.style.display = 'none'; }
+            }
         }
         let resDebounce = null;
         function filterResidents() {
