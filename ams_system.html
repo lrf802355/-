@@ -1477,15 +1477,35 @@
                 } catch(e) {}
 
                 const details = await Promise.all(hotels.map(async h => {
-                    let stats = { rooms: 0, beds: 0, publishedRooms: 0, unpublishedRooms: 0 };
+                    let stats = { rooms: 0, beds: 0, publishedRooms: 0, unpublishedRooms: 0, vacant: 0, occupied: 0, locks: 0 };
                     let resCount = 0;
                     try {
-                        const campusData = await getCampusData(h.hotelId);
-                        stats = calcRoomStats(campusData.rooms);
+                        // 用AMS treeLazyLoading统计（和楼栋房间一致）
+                        const res = await fetch('/api/hotel/web/basics/treeLazyLoading?hotelId=' + h.hotelId);
+                        const d = await res.json();
+                        const tree = d.data;
+                        if (tree) {
+                            // 汇总所有楼栋-楼层的房间/床位
+                            let rooms = 0, beds = 0, vacant = 0, occupied = 0, locks = 0;
+                            const walk = node => {
+                                if (node.nodeType === '1' || node.nodeType === '0') {
+                                    (node.children || []).forEach(walk);
+                                } else if (node.nodeType === '2') {
+                                    // 楼层节点：有统计
+                                    rooms += node.rooms || 0;
+                                    beds += node.beds || 0;
+                                    vacant += node.vacantBeds || 0;
+                                    occupied += node.occupiedBeds || 0;
+                                    locks += node.roomLocks || 0;
+                                }
+                            };
+                            walk(tree);
+                            stats = { rooms, beds, publishedRooms: rooms, unpublishedRooms: 0, vacant, occupied, locks };
+                        }
                     } catch(e) {}
                     // 昨日在住人数（用已查询的yesterdayMap）
                     resCount = yesterdayMap[String(h.hotelId)] || 0;
-                    return { ...h, roomCount: stats.publishedRooms, bedCount: stats.beds, resCount, publishedRooms: stats.publishedRooms, unpublishedRooms: stats.unpublishedRooms };
+                    return { ...h, roomCount: stats.rooms, bedCount: stats.beds, resCount, publishedRooms: stats.publishedRooms, unpublishedRooms: stats.unpublishedRooms, vacant: stats.vacant, occupied: stats.occupied, locks: stats.locks };
                 }));
 
                 let html = '';
@@ -2092,7 +2112,7 @@
                 bldgNodes.forEach(bldg => {
                     (bldg.children || []).forEach(floor => {
                         const key = (bldg.nodeName || '') + '|' + (floor.nodeName || '');
-                        const floorRooms = (floor.children || []).filter(n => n.nodeType === '2' || n.roomId);
+                        const floorRooms = (floor.children || []).filter(n => n.nodeType === '3' || n.roomId);
                         floorGroups[key] = {
                             building: bldg.nodeName || '',
                             floorName: floor.nodeName || '',
