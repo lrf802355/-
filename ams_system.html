@@ -828,6 +828,7 @@
                 </select>
                 <input id="resSearch" type="text" placeholder="搜索姓名/房号/手机号..." oninput="filterResidents()" style="padding:8px 12px;border-radius:6px;border:1px solid #334155;background:#ffffff;color:#e2e8f0;font-size:0.85rem;width:220px">
                 <button class="btn btn-primary" onclick="fetchResidents()">🔍 查询在住</button>
+                <button class="btn" style="background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.4);color:#38bdf8" onclick="fetchResidents(true)">⚡ 实时刷新</button>
                 <span id="resCount" style="color:#94a3b8;font-size:0.85rem"></span>
             </div>
             <div id="resLoading" class="loading">点击"查询在住"加载当前在住名单</div>
@@ -1896,31 +1897,34 @@
             } catch(e) {}
         }
 
-        async function fetchResidents() {
+        async function fetchResidents(forceLive) {
             if (resFetching) return;
             resFetching = true;
             const loading = document.getElementById('resLoading');
             const content = document.getElementById('resContent');
             loading.style.display = 'block';
             content.style.display = 'none';
+            loading.textContent = forceLive ? '正在实时拉取AMS最新在住名单...' : '正在从本地快照加载在住名单...';
             document.getElementById('resLastUpdate').textContent = new Date().toLocaleString('zh-CN');
 
             const select = document.getElementById('resCampus');
             select.innerHTML = '<option value="">全部校区</option>';
 
-            // 优先从本地快照缓存加载（每天7点抓取入库），本地没有时才实时调AMS
             let results = null;
-            try {
-                const r = await fetch('/api/residents/snapshot?detail=1');
-                const d = await r.json();
-                if (d.code === 200 && d.records && d.records.length && d.records[0].name) {
-                    allResidents = d.records;
-                    results = HOTELS.map(h => d.records.filter(p => p._campusName === h.name));
-                }
-            } catch(e) {}
+            if (!forceLive) {
+                // 默认：优先从本地快照缓存加载（每天7点抓取入库），本地没有时才实时调AMS
+                try {
+                    const r = await fetch('/api/residents/snapshot?detail=1');
+                    const d = await r.json();
+                    if (d.code === 200 && d.records && d.records.length && d.records[0].name) {
+                        allResidents = d.records;
+                        results = HOTELS.map(h => d.records.filter(p => p._campusName === h.name));
+                    }
+                } catch(e) {}
+            }
 
             if (!results) {
-                // 本地无快照，回退到实时拉取AMS
+                // 实时模式或本地无快照：直接调AMS拉最新
                 const promises = HOTELS.map(async h => {
                     try {
                         const r = await fetch('/api/hotel/web/business/checkOrder/listAcc/' + h.id + '?pageSize=500');
@@ -1943,6 +1947,7 @@
             });
 
             loading.style.display = 'none';
+            loading.textContent = '点击"查询在住"加载当前在住名单';
             content.style.display = 'block';
             filterResidents();
             resFetching = false;
@@ -2274,6 +2279,7 @@
 
         // 本年每月各校区在住人次（从income_flow缓存表聚合）
         function fetchMonthlyOccupancy() {
+            const loading = document.getElementById('occLoading');
             loading.style.display = 'block';
             const body = document.getElementById('occBody');
             body.innerHTML = '<tr><td colspan="14" style="color:#94a3b8">加载中...</td></tr>';
