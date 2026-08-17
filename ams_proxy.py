@@ -1393,7 +1393,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             conn.close()
 
             import openpyxl
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.styles import Font, PatternFill
             wb = openpyxl.Workbook()
             # Sheet1 汇总
             ws_sum = wb.active
@@ -1528,23 +1528,6 @@ class ProxyHandler(BaseHTTPRequestHandler):
             ws_sum.append(["一致", match_count])
             ws_sum.append(["不一致", diff_count])
             ws_sum.append(["合计", match_count + diff_count])
-
-            # 导出表统一列宽、自动换行和筛选，避免姓名/证件号/手机号显示挤在一起。
-            widths = {
-                'A': 14, 'B': 22, 'C': 16, 'D': 15, 'E': 10,
-                'F': 11, 'G': 11, 'H': 11, 'I': 12, 'J': 12,
-                'K': 11, 'L': 16, 'M': 28, 'N': 11, 'O': 12,
-            }
-            thin = Side(style='thin', color='D9E2F3')
-            for ws in (ws_det, ws_m, ws_d):
-                for col, width in widths.items():
-                    ws.column_dimensions[col].width = width
-                ws.freeze_panes = 'A2'
-                ws.auto_filter.ref = ws.dimensions
-                for row in ws.iter_rows():
-                    for cell in row:
-                        cell.alignment = Alignment(vertical='center', wrap_text=True)
-                        cell.border = Border(bottom=thin)
 
             for col in range(1, 3):
                 ws_sum.cell(row=1, column=col).font = Font(bold=True)
