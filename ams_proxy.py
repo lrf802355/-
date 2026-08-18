@@ -50,16 +50,17 @@ MODULES = {
     "board": "包住对比",
     "test": "校区地图",
     "bedmanage": "床位管理",
+    "beddemo": "床位管理演示版",
 }
 
 # 默认工作区（首次启动自动创建，可在【权限管理】中调整）
 DEFAULT_WORKSPACES = [
     {"name": "管理后台", "modules": list(MODULES.keys()), "campuses": [], "remark": "管理员专用，拥有全部模块"},
-    {"name": "公寓运营", "modules": ["summary", "info", "weekly", "staff", "residents", "rooms", "test", "bedmanage"],
+    {"name": "公寓运营", "modules": ["summary", "info", "weekly", "staff", "residents", "rooms", "test", "bedmanage", "beddemo"],
      "campuses": [], "remark": "公寓一组/二组日常运营"},
     {"name": "财务", "modules": ["summary", "income", "finance", "payroll", "board"],
      "campuses": [], "remark": "收入/财务/工资/包住对比"},
-    {"name": "酒店前台", "modules": ["residents", "rooms", "bedmanage", "test"],
+    {"name": "酒店前台", "modules": ["residents", "rooms", "bedmanage", "beddemo", "test"],
      "campuses": [], "remark": "前台接待日常使用"},
 ]
 
@@ -78,6 +79,7 @@ API_MODULE_RULES = [
     ("/api/wake/", ["bedmanage"]),
     ("/api/battle/", ["bedmanage"]),
     ("/api/smokefree/", ["bedmanage"]),
+    ("/api/beddemo/", ["beddemo"]),
     ("/api/linen/", ["linen"]),
     ("/api/payroll/", ["payroll"]),
     ("/api/hotel/web/basics/", ["info", "rooms", "bedmanage", "test"]),

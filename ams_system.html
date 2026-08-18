@@ -635,6 +635,7 @@
         <div class="nav-item" data-module="board" onclick="showPage('board', event)"><span class="nav-icon">🛏️</span>包住对比</div>
         <div class="nav-item" data-module="test" onclick="showPage('test', event)"><span class="nav-icon">🗺️</span>校区地图</div>
         <div class="nav-item" data-module="bedmanage" onclick="showPage('bedmanage', event)"><span class="nav-icon">🛏️</span>叫醒服务</div>
+        <div class="nav-item" data-module="beddemo" onclick="showPage('beddemo', event)"><span class="nav-icon">⚡</span>床位演示</div>
         <div class="nav-item" data-admin="1" style="display:none" onclick="showPage('admin', event)"><span class="nav-icon">🔐</span>权限管理</div>
         <div class="sidebar-footer"><strong>工作台 v2.0</strong>数据每 5 分钟自动缓存</div>
     </div>
@@ -1306,6 +1307,13 @@
             </div>
         </div>
 
+        <!-- 床位管理演示版（独立静态页，暂不与其他模块合并） -->
+        <div id="beddemo-page" class="page">
+            <h1>🛏️ 床位管理演示版</h1>
+            <div class="page-sub">战斗区床位管理 + 日/月统计（独立演示页，数据为演示数据，后续再接入工作台真实数据）</div>
+            <iframe src="/bed_demo.html" style="width:100%;height:calc(100vh - 215px);min-height:620px;border:0;border-radius:14px;background:#fff"></iframe>
+        </div>
+
         <!-- 权限管理页（仅管理员可见） -->
         <div id="admin-page" class="page">
             <h1>🔐 权限管理</h1>
@@ -1492,11 +1500,12 @@
             if (p === 'board') fetchBoard();
             if (p === 'test') { setTimeout(initDrillMap, 300); }
             if (p === 'bedmanage') initBedManage();
+            if (p === 'beddemo') { /* 独立iframe演示页，无需初始化 */ }
             if (p === 'admin') initAdminPage();
         }
 
         function getPageName(p) {
-            var names = {summary:'数据汇总',info:'基本信息',weekly:'周效比',staff:'花名册',residents:'在住名单',rooms:'楼栋房间',income:'收入报表',finance:'财务数据',payroll:'工资表',linen:'布草管理',board:'包住对比',admin:'权限管理'};
+            var names = {summary:'数据汇总',info:'基本信息',weekly:'周效比',staff:'花名册',residents:'在住名单',rooms:'楼栋房间',income:'收入报表',finance:'财务数据',payroll:'工资表',linen:'布草管理',board:'包住对比',beddemo:'床位演示',admin:'权限管理'};
             return names[p] || p;
         }
 
