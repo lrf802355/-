@@ -1547,11 +1547,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
         return conn
 
     def wake_records(self, query_string):
-        """查询叫醒记录：?date=2026-08-17&hotel_id=10145"""
+        """查询叫醒记录：?date=2026-08-17&hotel_id=10145 或 ?start_date=&end_date=&hotel_id=10145"""
         from urllib.parse import parse_qs
         params = parse_qs(query_string)
         date = params.get('date', [''])[0]
         hotel_id = params.get('hotel_id', [''])[0]
+        start_date = params.get('start_date', [''])[0]
+        end_date = params.get('end_date', [''])[0]
         try:
             import sqlite3
             conn = self._wake_db()
@@ -1565,6 +1567,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if hotel_id:
                 sql += " AND hotel_id = ?"
                 args.append(hotel_id)
+            if start_date:
+                sql += " AND record_date >= ?"
+                args.append(start_date)
+            if end_date:
+                sql += " AND record_date <= ?"
+                args.append(end_date)
             scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
             if scope_args:
                 sql += scope_sql

@@ -1255,6 +1255,42 @@
 
             <!-- 统计卡片 -->
             <div id="bmStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px"></div>
+            <!-- 日/月叫醒统计 -->
+            <div style="background:#fff;border:1px solid #e5e6eb;border-radius:12px;padding:16px;margin-bottom:16px">
+                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px">
+                    <span style="font-weight:800;font-size:0.95rem">📊 日/月叫醒统计</span>
+                    <select id="wsMode" class="ctrl" style="width:auto" onchange="toggleWsDate()">
+                        <option value="day">按天统计</option>
+                        <option value="month">按月统计</option>
+                    </select>
+                    <input type="date" id="wsDay" class="ctrl" style="width:auto">
+                    <input type="month" id="wsMonth" class="ctrl" style="width:auto;display:none">
+                    <select id="wsScope" class="ctrl" style="width:auto">
+                        <option value="battle">战斗区</option>
+                        <option value="all">全部床位</option>
+                        <option value="regular">常规区</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="loadWakeStats()">生成统计</button>
+                    <button class="btn" onclick="exportWakeStats()">导出CSV</button>
+                </div>
+                <div id="wsStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px"></div>
+                <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:12px;margin-bottom:14px">
+                    <div style="border:1px solid #e5e6eb;border-radius:10px;padding:14px">
+                        <div style="font-weight:700;font-size:0.85rem;margin-bottom:8px">叫醒结果分布</div>
+                        <div id="wsBars"></div>
+                    </div>
+                    <div style="border:1px solid #e5e6eb;border-radius:10px;padding:14px">
+                        <div style="font-weight:700;font-size:0.85rem;margin-bottom:8px">男女生应答对比</div>
+                        <div id="wsGender" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
+                    </div>
+                </div>
+                <div style="overflow-x:auto">
+                    <table>
+                        <thead><tr><th>日期</th><th>应答</th><th>未应答</th><th>请假</th><th>无课</th><th>未登记</th><th>男生应答率</th><th>女生应答率</th><th>整体应答率</th></tr></thead>
+                        <tbody id="wsBody"></tbody>
+                    </table>
+                </div>
+            </div>
 
             <!-- 床位表 -->
             <div style="background:#fff;border:1px solid #e5e6eb;border-radius:12px;padding:12px;overflow-x:auto">
@@ -3543,6 +3579,8 @@
             }
             if (!document.getElementById('bmDate').value) {
                 document.getElementById('bmDate').value = new Date().toISOString().slice(0,10);
+                document.getElementById('wsDay').value = new Date().toISOString().slice(0,10);
+                document.getElementById('wsMonth').value = new Date().toISOString().slice(0,7);
             }
             // 加载战斗区配置
             try {
@@ -3668,6 +3706,150 @@
             }
         }
 
+
+        // ===== 日/月叫醒统计（真实数据）=====
+        let bmRoomsCache = {};  // hotelId -> [床位]
+        let wsRows = [];        // 最近一次统计明细（导出用）
+
+        async function getBmRooms(hotelId) {
+            if (bmRoomsCache[hotelId]) return bmRoomsCache[hotelId];
+            const res = await fetch('/api/hotel/web/basics/room/list/' + hotelId);
+            const d = await res.json();
+            const beds = (d.data || []).filter(r => /-\d+$/.test(r.roomName || '')).map(r => {
+                const rn = r.roomName;
+                const idx = rn.lastIndexOf('-');
+                return {
+                    build: r.roomBuildName || '', floor: r.roomFloorName || '',
+                    room: rn.slice(0, idx), bedNo: rn.slice(idx + 1),
+                    roomCode: r.roomCode || '', roomName: rn, status: r.roomStateCode || ''
+                };
+            });
+            bmRoomsCache[hotelId] = beds;
+            return beds;
+        }
+
+        function datesInMonth(month) {
+            if (!month) return [];
+            const [y, m] = month.split('-').map(Number);
+            const days = new Date(y, m, 0).getDate();
+            const arr = [];
+            for (let d = 1; d <= days; d++) arr.push(y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'));
+            return arr;
+        }
+
+        function toggleWsDate() {
+            const mode = document.getElementById('wsMode').value;
+            document.getElementById('wsDay').style.display = mode === 'day' ? '' : 'none';
+            document.getElementById('wsMonth').style.display = mode === 'month' ? '' : 'none';
+        }
+
+        async function loadWakeStats() {
+            const hotelId = document.getElementById('bmCampus').value;
+            if (!hotelId) { alert('请先选择校区'); return; }
+            const mode = document.getElementById('wsMode').value;
+            const scope = document.getElementById('wsScope').value;
+            const day = document.getElementById('wsDay').value;
+            const month = document.getElementById('wsMonth').value;
+            const dates = mode === 'day' ? [day] : datesInMonth(month);
+            if (!dates.length || !dates[0]) { alert('请选择日期或月份'); return; }
+
+            const zone = bmZones[hotelId] || {floors: [], beds: []};
+            const floorNum = f => { const m = (f || '').match(/(\d+)/); return m ? parseInt(m[1]) : 999; };
+            const isBattle = b => zone.floors.includes(floorNum(b.floor)) || zone.beds.includes(b.roomCode);
+
+            let beds = [];
+            let records = [];
+            try {
+                const [roomRes, recRes] = await Promise.all([
+                    getBmRooms(hotelId),
+                    fetch('/api/wake/records?start_date=' + dates[0] + '&end_date=' + dates[dates.length - 1] + '&hotel_id=' + hotelId)
+                ]);
+                beds = roomRes;
+                const rd = await recRes.json();
+                records = rd.data || [];
+            } catch(e) {
+                alert('加载失败: ' + e.message);
+                return;
+            }
+
+            // 统计对象：选定范围内、当前在住(OC)的床位
+            const list = beds.filter(b => b.status === 'OC' && (scope === 'battle' ? isBattle(b) : scope === 'regular' ? !isBattle(b) : true));
+
+            const recByDate = {};
+            records.forEach(rec => {
+                recByDate[rec.record_date + '|' + rec.room_code + '|' + rec.bed_name] = rec.wake_status;
+            });
+            const getWake = (date, b) => recByDate[date + '|' + b.roomCode + '|' + b.bedNo] || '未登记';
+            const genderOf = b => (b.floor || '').includes('男') ? '男' : (b.floor || '').includes('女') ? '女' : '';
+
+            wsRows = dates.map(date => {
+                const out = {date: date, 应答: 0, 未应答: 0, 请假: 0, 无课: 0, 未登记: 0, mA: 0, mT: 0, fA: 0, fT: 0};
+                list.forEach(b => {
+                    const s = getWake(date, b);
+                    out[s]++;
+                    if (s !== '请假' && s !== '无课' && s !== '未登记') {
+                        const g = genderOf(b);
+                        if (g === '男') { out.mT++; if (s === '应答') out.mA++; }
+                        else if (g === '女') { out.fT++; if (s === '应答') out.fA++; }
+                    }
+                });
+                out.total = out.应答 + out.未应答;
+                out.rate = out.total ? out.应答 / out.total : 0;
+                return out;
+            });
+
+            const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
+            const sum = k => wsRows.reduce((a, x) => a + x[k], 0);
+            const ans = sum('应答'), no = sum('未应答'), leave = sum('请假'), nc = sum('无课'), un = sum('未登记');
+            const den = ans + no;
+
+            document.getElementById('wsStats').innerHTML = [
+                ['应答', ans, '#00b42a', '有效应答'],
+                ['未应答', no, '#f53f3f', '需重点跟进'],
+                ['请假', leave, '#f59d23', '已登记请假'],
+                ['无课', nc, '#78869b', '当日无课'],
+                ['未登记', un, '#9aa5b5', '待登记'],
+                ['整体应答率', pct(ans, den), '#2684ff', '应答 ÷（应答+未应答）'],
+                ['统计床位', list.length, '#af6200', scope === 'battle' ? '战斗区在住' : scope === 'regular' ? '常规区在住' : '全部在住'],
+                ['统计天数', dates.length, '#7d5ce7', mode === 'day' ? '日统计' : '月统计']
+            ].map(c => '<div style="background:#fff;border:1px solid #e5e6eb;border-radius:10px;padding:12px;text-align:center">' +
+                '<div style="font-size:0.75rem;color:#86909c">' + c[0] + '</div>' +
+                '<div style="font-size:1.4rem;font-weight:800;color:' + c[2] + '">' + c[1] + '</div>' +
+                '<div style="font-size:0.7rem;color:#a9b1bd">' + c[3] + '</div></div>').join('');
+
+            const vals = [['应答', ans, '#00b42a'], ['未应答', no, '#f53f3f'], ['请假', leave, '#f59d23'], ['无课', nc, '#78869b'], ['未登记', un, '#aeb6c2']];
+            const max = Math.max(1, ...vals.map(x => x[1]));
+            document.getElementById('wsBars').innerHTML = vals.map(x =>
+                '<div style="display:grid;grid-template-columns:70px 1fr 44px;align-items:center;gap:8px;margin:9px 0;font-size:0.8rem">' +
+                '<span>' + x[0] + '</span>' +
+                '<div style="height:12px;background:#edf0f4;border-radius:8px;overflow:hidden"><div style="height:100%;width:' + (x[1] / max * 100) + '%;background:' + x[2] + ';border-radius:8px"></div></div>' +
+                '<b style="text-align:right">' + x[1] + '</b></div>').join('');
+
+            const mA = sum('mA'), mT = sum('mT'), fA = sum('fA'), fT = sum('fT');
+            document.getElementById('wsGender').innerHTML =
+                '<div style="border-radius:10px;background:#f5f8ff;padding:12px;text-align:center"><div style="font-size:0.75rem;color:#86909c">男生</div><div style="font-size:1.5rem;font-weight:800;color:#2684ff">' + pct(mA, mT) + '</div><div style="font-size:0.7rem;color:#86909c">应答 ' + mA + ' / 有效 ' + mT + '</div></div>' +
+                '<div style="border-radius:10px;background:#fff2f6;padding:12px;text-align:center"><div style="font-size:0.75rem;color:#86909c">女生</div><div style="font-size:1.5rem;font-weight:800;color:#f5319d">' + pct(fA, fT) + '</div><div style="font-size:0.7rem;color:#86909c">应答 ' + fA + ' / 有效 ' + fT + '</div></div>';
+
+            document.getElementById('wsBody').innerHTML = wsRows.map(x =>
+                '<tr><td><b>' + x.date + '</b></td><td style="color:#00b42a;font-weight:700">' + x.应答 + '</td>' +
+                '<td style="color:#f53f3f;font-weight:700">' + x.未应答 + '</td><td>' + x.请假 + '</td><td>' + x.无课 + '</td><td>' + x.未登记 + '</td>' +
+                '<td>' + pct(x.mA, x.mT) + '</td><td>' + pct(x.fA, x.fT) + '</td><td><b>' + Math.round(x.rate * 100) + '%</b></td></tr>').join('') ||
+                '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:24px">暂无数据</td></tr>';
+        }
+
+        function exportWakeStats() {
+            if (!wsRows.length) { alert('请先生成统计'); return; }
+            const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
+            const rows = [['日期', '应答', '未应答', '请假', '无课', '未登记', '男生应答率', '女生应答率', '整体应答率'],
+                ...wsRows.map(x => [x.date, x.应答, x.未应答, x.请假, x.无课, x.未登记, pct(x.mA, x.mT), pct(x.fA, x.fT), Math.round(x.rate * 100) + '%'])];
+            const csv = '\ufeff' + rows.map(r => r.join(',')).join('\n');
+            const blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = '叫醒统计_' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
         async function saveWake(status, hotelId, date, btn) {
             // 从按钮所在行取数据（用data属性）
             const tr = btn.closest('tr');
