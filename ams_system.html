@@ -1231,7 +1231,6 @@
                 <button class="btn btn-primary" onclick="loadBedManage()">🔄 刷新</button>
                 <button class="btn" onclick="showBattleConfig()">⚡ 战斗区配置</button>
                 <select id="bmFloor" class="ctrl" style="width:auto" onchange="loadBedManage()"><option value="">全部楼层</option></select>
-                <select id="bmRoomType" class="ctrl" style="width:auto" onchange="loadBedManage()"><option value="">全部类型</option><option>无烟宿舍</option><option>安静宿舍</option><option>常规宿舍</option></select>
                 <span id="bmCount" style="font-size:0.8rem;color:#86909c"></span>
             </div>
 
@@ -3626,7 +3625,6 @@
         let bmCache = {};  // hotelId -> {bldgName, floorName, rooms[]}
         let bmZones = {};  // hotelId -> {floors:[], beds:[]}
         let bmSmokeFree = {};  // hotelId -> [房间码]（无烟宿舍）
-        let bmRoomTypes = {};  // hotelId -> {房间码: 类型（无烟宿舍/安静宿舍/常规宿舍）}
         let bmRecords = {};  // date_hotelId -> {roomCode_bedName: status}
 
         async function initBedManage() {
@@ -3644,18 +3642,12 @@
                 const r = await fetch('/api/battle/zones');
                 const d = await r.json();
                 (d.data || []).forEach(z => { bmZones[z.hotel_id] = {floors: JSON.parse(z.floors || '[]'), beds: JSON.parse(z.beds || '[]')}; });
-            } catch(e) {}
             // 加载无烟宿舍配置
             try {
                 const r2 = await fetch('/api/smokefree/rooms');
                 const d2 = await r2.json();
                 (d2.data || []).forEach(z => { bmSmokeFree[z.hotel_id] = JSON.parse(z.rooms || '[]'); });
             } catch(e) {}
-            // 加载房间类型配置（无烟宿舍/安静宿舍/常规宿舍）
-            try {
-                const r3 = await fetch('/api/roomtypes/rooms');
-                const d3 = await r3.json();
-                (d3.data || []).forEach(z => { bmRoomTypes[z.hotel_id] = JSON.parse(z.rooms || '{}'); });
             } catch(e) {}
             loadBedManage();
         }
@@ -3735,10 +3727,7 @@
                 let html = '';
                 // 叫醒登记后自动沉底：未登记的在住床位排最前（点第一个即可），已登记的排后面
                 const floorSel = parseInt(document.getElementById('bmFloor').value) || 0;
-                const rtOf = b => (bmRoomTypes[hotelId] || {})[b.parentCode] || ((bmSmokeFree[hotelId] || []).includes(b.parentCode) ? '无烟宿舍' : '常规宿舍');
-                const roomTypeSel = document.getElementById('bmRoomType').value;
-                let shown = floorSel ? beds.filter(b => floorNum(b.floor) === floorSel) : beds;
-                if (roomTypeSel) shown = shown.filter(b => rtOf(b) === roomTypeSel);
+                const shown = floorSel ? beds.filter(b => floorNum(b.floor) === floorSel) : beds;
                 shown.sort((a, b) => {
                     const pa = (recMap[a.roomCode + '_' + a.bedNo] ? 1 : 0) * 2 + (a.status === 'OC' ? 0 : 1);
                     const pb = (recMap[b.roomCode + '_' + b.bedNo] ? 1 : 0) * 2 + (b.status === 'OC' ? 0 : 1);
@@ -3755,16 +3744,16 @@
                     const student = occs.map(o => o.name).join('、');
                     let gender = (b.floor || '').includes('男') ? '男' : (b.floor || '').includes('女') ? '女' : '';
                     if (!gender && occs[0]) gender = occs[0].gsex === '2' ? '女' : occs[0].gsex === '1' ? '男' : '';
-                    const rt = rtOf(b);
-                    const rtStyle = rt === '无烟宿舍' ? 'background:#e6f7ff;color:#0b7ea8;border:1px solid #b5e5f5' : rt === '安静宿舍' ? 'background:#f1eaff;color:#7043c2;border:1px solid #d8ccf5' : 'background:#f2f3f5;color:#86909c;border:1px solid #e5e6eb';
-                    const rtLabel = rt === '无烟宿舍' ? '🚭 无烟宿舍' : rt === '安静宿舍' ? '🤫 安静宿舍' : '常规宿舍';
+                    const sf = (bmSmokeFree[hotelId] || []).includes(b.parentCode);
+                    const battle = isBattle(b);
+                    const wakeKey = b.roomCode + '_' + b.bedNo;
                     const wk = recMap[wakeKey] || '';
                     const isOccupied = b.status === 'OC';
                     html += '<tr style="' + (battle ? 'background:#fff7e6' : '') + '" data-rc="' + b.roomCode + '" data-bed="' + b.bedNo + '" data-room="' + b.room + '" data-stu="' + student + '" data-gen="' + gender + '" data-parent="' + (b.parentCode || '') + '">' +
                         '<td>' + b.build + '</td>' +
                         '<td>' + b.floor + '</td>' +
                         '<td>' + b.room + '</td>' +
-                        '<td style="text-align:center"><span class="sf-tag" onclick="toggleRoomType(this,\'' + hotelId + '\')" style="cursor:pointer;padding:3px 9px;border-radius:12px;font-size:0.75rem;font-weight:700;' + rtStyle + '">' + rtLabel + '</span></td>' +
+                        '<td style="text-align:center"><span class="sf-tag" onclick="toggleSmokeFree(this,\'' + hotelId + '\')" style="cursor:pointer;padding:3px 9px;border-radius:12px;font-size:0.75rem;font-weight:700;' + (sf ? 'background:#e6f7ff;color:#0b7ea8;border:1px solid #b5e5f5' : 'background:#f2f3f5;color:#86909c;border:1px solid #e5e6eb') + '\">' + (sf ? '🚭 无烟' : '普通') + '</span></td>' +
                         '<td>' + b.bedNo + '</td>' +
                         '<td>' + (gender || '-') + '</td>' +
                         '<td>' + (student || '-') + '</td>' +
@@ -3968,33 +3957,6 @@
             a.click();
             URL.revokeObjectURL(a.href);
         }
-        // 切换房间类型：常规宿舍 → 无烟宿舍 → 安静宿舍 → 循环（房间级，同房间床位联动）
-        async function toggleRoomType(el, hotelId) {
-            const tr = el.closest('tr');
-            const parent = tr.getAttribute('data-parent') || '';
-            if (!parent) { alert('数据缺失，无法保存'); return; }
-            const map = bmRoomTypes[hotelId] || (bmRoomTypes[hotelId] = {});
-            const cur = map[parent] || ((bmSmokeFree[hotelId] || []).includes(parent) ? '无烟宿舍' : '常规宿舍');
-            const next = cur === '常规宿舍' ? '无烟宿舍' : cur === '无烟宿舍' ? '安静宿舍' : '常规宿舍';
-            if (next === '常规宿舍') delete map[parent]; else map[parent] = next;
-            document.querySelectorAll('#bmBody tr[data-parent="' + parent + '"]').forEach(tr2 => {
-                const span = tr2.querySelector('.sf-tag');
-                if (span) {
-                    span.textContent = next === '无烟宿舍' ? '🚭 无烟宿舍' : next === '安静宿舍' ? '🤫 安静宿舍' : '常规宿舍';
-                    span.style.background = next === '无烟宿舍' ? '#e6f7ff' : next === '安静宿舍' ? '#f1eaff' : '#f2f3f5';
-                    span.style.color = next === '无烟宿舍' ? '#0b7ea8' : next === '安静宿舍' ? '#7043c2' : '#86909c';
-                }
-            });
-            try {
-                const r = await fetch('/api/roomtypes/save', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({hotel_id: hotelId, rooms: bmRoomTypes[hotelId]})
-                });
-                const d = await r.json();
-                if (d.code !== 200) { alert('❌ ' + (d.msg || '保存失败')); }
-            } catch(e) { alert('❌ ' + e.message); }
-        }
-
         async function saveWake(status, hotelId, date, btn) {
             // 从按钮所在行取数据（用data属性）
             const tr = btn.closest('tr');
