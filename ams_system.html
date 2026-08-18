@@ -1230,6 +1230,7 @@
                 <input type="date" id="bmDate" class="ctrl" value="" onchange="loadBedManage()">
                 <button class="btn btn-primary" onclick="loadBedManage()">🔄 刷新</button>
                 <button class="btn" onclick="showBattleConfig()">⚡ 战斗区配置</button>
+                <label style="display:flex;align-items:center;gap:5px;font-size:0.85rem;color:#af6200;cursor:pointer;user-select:none"><input type="checkbox" id="bmBattleOnly" onchange="loadBedManage()"> ⚔ 只看战斗区</label>
                 <span id="bmCount" style="font-size:0.8rem;color:#86909c"></span>
             </div>
 
@@ -1261,7 +1262,7 @@
                     <thead>
                         <tr>
                             <th>楼栋</th><th>楼层</th><th>房间</th><th>床位</th><th>性别</th><th>学员</th>
-                            <th>床位状态</th><th>战斗区</th><th>叫醒结果</th><th>操作</th>
+                            <th>床位状态</th><th>叫醒结果</th><th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="bmBody"></tbody>
@@ -3558,8 +3559,8 @@
             const body = document.getElementById('bmBody');
             const count = document.getElementById('bmCount');
             const stats = document.getElementById('bmStats');
-            if (!hotelId) { body.innerHTML = '<tr><td colspan="10" style="color:#86909c;text-align:center;padding:30px">请选择校区</td></tr>'; return; }
-            body.innerHTML = '<tr><td colspan="10" style="color:#86909c;text-align:center;padding:30px">加载中...</td></tr>';
+            if (!hotelId) { body.innerHTML = '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">请选择校区</td></tr>'; return; }
+            body.innerHTML = '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">加载中...</td></tr>';
 
             try {
                 // 1. 拉AMS全量床位（room/list 每张床一条记录，自带楼栋/楼层/状态）
@@ -3611,12 +3612,13 @@
                 const stateMap = {VC:'空闲床', VD:'脏床', OC:'在住'};
                 const stateColor = {VC:'#00b42a', VD:'#f53f3f', OC:'#2684ff'};
                 const isBattle = b => zone.floors.includes(floorNum(b.floor)) || zone.beds.includes(b.roomCode);
+                const battleOnly = document.getElementById('bmBattleOnly').checked;
                 const wakeBtns = ['应答','未应答','请假','无课'].map(s =>
                     '<button class="btn wake-btn" style="padding:4px 10px;font-size:0.75rem;min-height:30px;margin:2px;background:#f2f3f5;border:1px solid #e5e6eb;color:#4e5969" onclick="saveWake(\'' + s + '\',\'' + hotelId + '\',\'' + date + '\',this)">' + s + '</button>'
                 ).join('');
 
                 let html = '';
-                beds.forEach(b => {
+                (battleOnly ? beds.filter(isBattle) : beds).forEach(b => {
                     // 匹配在住学员：精确床位名 > 归一化房名 > 纯房号兜底（仅限在住床位，避免空闲床显示室友）
                     let occs = occExact[b.roomName] || [];
                     if (!occs.length && b.status === 'OC') occs = occNorm[normRoomName(b.roomName)] || [];
@@ -3631,7 +3633,6 @@
                     const wakeKey = b.roomCode + '_' + b.bedNo;
                     const wk = recMap[wakeKey] || '';
                     const isOccupied = b.status === 'OC';
-                    const checked = zone.beds.includes(b.roomCode);
                     html += '<tr style="' + (battle ? 'background:#fff7e6' : '') + '" data-rc="' + b.roomCode + '" data-bed="' + b.bedNo + '" data-room="' + b.room + '" data-stu="' + student + '" data-gen="' + gender + '">' +
                         '<td>' + b.build + '</td>' +
                         '<td>' + b.floor + '</td>' +
@@ -3640,13 +3641,12 @@
                         '<td>' + (gender || '-') + '</td>' +
                         '<td>' + (student || '-') + '</td>' +
                         '<td style="color:' + (stateColor[b.status] || '#86909c') + ';font-size:0.75rem">' + (stateMap[b.status] || b.status || '-') + '</td>' +
-                        '<td style="text-align:center"><input type="checkbox" class="bm-battle-check" ' + (checked ? 'checked' : '') + ' onchange="toggleBedBattle(this,\'' + hotelId + '\')"></td>' +
                         '<td>' + (wk ? '<span style="color:#3370ff;font-weight:600">' + wk + '</span>' : '<span style="color:#c0c4cc">未登记</span>') + '</td>' +
                         '<td>' + (isOccupied ? wakeBtns : '<span style="color:#c0c4cc;font-size:0.75rem">非在住</span>') + '</td>' +
                         '</tr>';
                 });
-                body.innerHTML = html || '<tr><td colspan="10" style="color:#86909c;text-align:center;padding:30px">无床位数据</td></tr>';
-                count.textContent = '共 ' + beds.length + ' 个床位';
+                body.innerHTML = html || '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">无床位数据</td></tr>';
+                count.textContent = battleOnly ? ('战斗区 ' + beds.filter(isBattle).length + ' / 共 ' + beds.length + ' 个床位') : '共 ' + beds.length + ' 个床位';
 
                 // 5. 统计
                 const stat = {total: beds.length, occupied: beds.filter(b => b.status === 'OC').length,
@@ -3664,37 +3664,10 @@
                     '<div style="font-size:0.75rem;color:#86909c">' + c[0] + '</div>' +
                     '<div style="font-size:1.4rem;font-weight:800;color:' + c[2] + '"' + (c[0] === '⚔战斗区' ? ' id="bmStatBattle"' : '') + '>' + c[1] + '</div></div>').join('');
             } catch(e) {
-                body.innerHTML = '<tr><td colspan="10" style="color:#f53f3f;text-align:center;padding:30px">加载失败: ' + e.message + '</td></tr>';
+                body.innerHTML = '<tr><td colspan="9" style="color:#f53f3f;text-align:center;padding:30px">加载失败: ' + e.message + '</td></tr>';
             }
         }
 
-        // 单床勾选/取消战斗区（行内复选框，实时保存并同步高亮/统计）
-        async function toggleBedBattle(cb, hotelId) {
-            const zone = bmZones[hotelId] || (bmZones[hotelId] = {floors: [], beds: []});
-            const tr = cb.closest('tr');
-            const code = tr.getAttribute('data-rc') || '';
-            if (!code) return;
-            const floorText = tr.children[1] ? tr.children[1].textContent : '';
-            const fm = floorText.match(/(\d+)/);
-            const floorNo = fm ? parseInt(fm[1]) : 999;
-            const wasBattle = zone.floors.includes(floorNo) || zone.beds.includes(code);
-            if (cb.checked) { if (!zone.beds.includes(code)) zone.beds.push(code); }
-            else { zone.beds = zone.beds.filter(x => x !== code); }
-            const nowBattle = zone.floors.includes(floorNo) || zone.beds.includes(code);
-            tr.style.background = nowBattle ? '#fff7e6' : '';
-            const bc = document.getElementById('bmStatBattle');
-            if (bc) {
-                bc.textContent = (parseInt(bc.textContent) || 0) + ((nowBattle ? 1 : 0) - (wasBattle ? 1 : 0));
-            }
-            try {
-                const r = await fetch('/api/battle/save', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({hotel_id: hotelId, floors: zone.floors, beds: zone.beds})
-                });
-                const d = await r.json();
-                if (d.code !== 200) { alert('❌ ' + (d.msg || '保存失败')); loadBedManage(); }
-            } catch(e) { alert('❌ ' + e.message); loadBedManage(); }
-        }
         async function saveWake(status, hotelId, date, btn) {
             // 从按钮所在行取数据（用data属性）
             const tr = btn.closest('tr');
