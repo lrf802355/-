@@ -1230,7 +1230,6 @@
                 <input type="date" id="bmDate" class="ctrl" value="" onchange="loadBedManage()">
                 <button class="btn btn-primary" onclick="loadBedManage()">🔄 刷新</button>
                 <button class="btn" onclick="showBattleConfig()">⚡ 战斗区配置</button>
-                <label style="display:flex;align-items:center;gap:5px;font-size:0.85rem;color:#af6200;cursor:pointer;user-select:none"><input type="checkbox" id="bmBattleOnly" onchange="loadBedManage()"> ⚔ 只看战斗区</label>
                 <select id="bmFloor" class="ctrl" style="width:auto" onchange="loadBedManage()"><option value="">全部楼层</option></select>
                 <span id="bmCount" style="font-size:0.8rem;color:#86909c"></span>
             </div>
@@ -3660,7 +3659,6 @@
                 const stateMap = {VC:'空闲床', VD:'脏床', OC:'在住'};
                 const stateColor = {VC:'#00b42a', VD:'#f53f3f', OC:'#2684ff'};
                 const isBattle = b => zone.floors.includes(floorNum(b.floor)) || zone.beds.includes(b.roomCode);
-                const battleOnly = document.getElementById('bmBattleOnly').checked;
                 const wakeBtns = ['应答','未应答','请假','无课','已离开'].map(s =>
                     '<button class="btn wake-btn" style="padding:4px 10px;font-size:0.75rem;min-height:30px;margin:2px;background:#f2f3f5;border:1px solid #e5e6eb;color:#4e5969" onclick="saveWake(\'' + s + '\',\'' + hotelId + '\',\'' + date + '\',this)">' + s + '</button>'
                 ).join('');
@@ -3668,7 +3666,7 @@
                 let html = '';
                 // 叫醒登记后自动沉底：未登记的在住床位排最前（点第一个即可），已登记的排后面
                 const floorSel = parseInt(document.getElementById('bmFloor').value) || 0;
-                const shown = floorSel ? beds.filter(b => floorNum(b.floor) === floorSel) : (battleOnly ? beds.filter(isBattle) : beds);
+                const shown = floorSel ? beds.filter(b => floorNum(b.floor) === floorSel) : beds;
                 shown.sort((a, b) => {
                     const pa = (recMap[a.roomCode + '_' + a.bedNo] ? 1 : 0) * 2 + (a.status === 'OC' ? 0 : 1);
                     const pb = (recMap[b.roomCode + '_' + b.bedNo] ? 1 : 0) * 2 + (b.status === 'OC' ? 0 : 1);
@@ -3702,7 +3700,7 @@
                         '</tr>';
                 });
                 body.innerHTML = html || '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">无床位数据</td></tr>';
-                count.textContent = shown.length + ' / 共 ' + beds.length + ' 个床位' + (floorSel ? '（' + floorSel + '楼）' : (battleOnly ? '（战斗区）' : ''));
+                count.textContent = shown.length + ' / 共 ' + beds.length + ' 个床位' + (floorSel ? '（' + floorSel + '楼）' : '');
 
                 // 5. 统计
                 const stat = {total: beds.length, occupied: beds.filter(b => b.status === 'OC').length,
