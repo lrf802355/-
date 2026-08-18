@@ -12,13 +12,14 @@
 <body>
 <header class="top"><div class="topin"><div class="brand"><div class="logo">星</div><div><div class="title">上岸公寓 · 战斗区床位管理</div><div class="sub">星途径，效率高，上岸快</div></div></div><div class="live"><span class="dot"></span>本地实时数据 · <span id="clock"></span></div></div></header>
 <main class="wrap">
-<div class="notice"><b>战斗区规则：每个楼栋的 5 楼、8 楼自动标记为“战斗区”</b><span>叫醒记录按床位、日期留存，支持日/月统计及男女生分项统计</span></div>
+<div class="notice"><b>已接入工作台真实数据：床位/在住/叫醒记录/战斗区/无烟宿舍均与叫醒服务同步</b><span>叫醒记录按床位、日期留存，支持日/月统计及男女生分项统计</span></div>
 <div class="tabs"><button class="tab on" data-panel="manage">床位与叫醒管理</button><button class="tab" data-panel="report">日 / 月统计</button></div>
 <section id="manage" class="panel on">
  <div class="toolbar">
+  <div class="field"><label>校区</label><select id="campus"><option value="">加载中…</option></select></div>
   <div class="field"><label>业务日期</label><input id="day" type="date"></div>
-  <div class="field"><label>楼栋</label><select id="building"><option value="">全部楼栋</option><option>A栋</option><option>B栋</option><option>C栋</option></select></div>
-  <div class="field"><label>楼层 / 分区</label><select id="zone"><option value="">全部区域</option><option value="battle">战斗区（5、8楼）</option><option value="regular">常规区</option></select></div>
+  <div class="field"><label>楼栋</label><select id="building"><option value="">全部楼栋</option></select></div>
+  <div class="field"><label>楼层 / 分区</label><select id="zone"><option value="">全部区域</option><option value="battle">战斗区</option><option value="regular">常规区</option></select></div>
   <div class="field"><label>房间类型</label><select id="roomType"><option value="">全部类型</option><option>无烟宿舍</option><option>安静宿舍</option><option>常规宿舍</option></select></div>
   <div class="field"><label>性别</label><select id="gender"><option value="">全部</option><option>男生</option><option>女生</option></select></div>
   <div class="field"><label>叫醒结果</label><select id="wakeFilter"><option value="">全部</option><option>应答</option><option>未应答</option><option>请假</option><option>无课</option><option value="未登记">未登记</option></select></div>
@@ -26,44 +27,117 @@
   <button class="btn primary" onclick="render()">查询</button><button class="btn light" onclick="resetFilters()">重置</button>
  </div>
  <div class="stats" id="bedStats"></div>
- <div class="card" style="padding:0"><div style="padding:15px;display:flex;justify-content:space-between;align-items:center"><div class="section-title">床位明细<span class="count" id="resultCount"></span></div><button class="btn dark" onclick="batchWakeNoAnswer()">战斗区未登记批量标记未应答</button></div><div class="tablebox"><table class="table"><thead><tr><th>楼栋</th><th>楼层/分区</th><th>房间</th><th>房间类型</th><th>床位</th><th>性别</th><th>学员</th><th>床位状态</th><th>叫醒结果（按当日）</th><th>床位操作</th><th>更新时间</th></tr></thead><tbody id="tbody"></tbody></table></div><div class="pagination"><span>演示版一次展示全部筛选结果</span><span>数据变更后统计实时刷新</span></div><div class="api">接口预留字段：<code>building, floor, roomNo, roomType, bedNo, gender, studentName, bedStatus, wakeStatus, recordDate, updatedAt</code></div></div>
+ <div class="card" style="padding:0"><div style="padding:15px;display:flex;justify-content:space-between;align-items:center"><div class="section-title">床位明细<span class="count" id="resultCount"></span></div><button class="btn dark" onclick="batchWakeNoAnswer()">战斗区未登记批量标记未应答</button></div><div class="tablebox"><table class="table"><thead><tr><th>楼栋</th><th>楼层/分区</th><th>房间</th><th>房间类型</th><th>床位</th><th>性别</th><th>学员</th><th>床位状态</th><th>叫醒结果（按当日）</th><th>床位操作</th><th>更新时间</th></tr></thead><tbody id="tbody"></tbody></table></div><div class="pagination"><span>真实数据 · 全部筛选结果一次展示</span><span>数据变更后统计实时刷新</span></div><div class="api">接口预留字段：<code>building, floor, roomNo, roomType, bedNo, gender, studentName, bedStatus, wakeStatus, recordDate, updatedAt</code></div></div>
 </section>
 <section id="report" class="panel">
- <div class="toolbar"><div class="field"><label>统计口径</label><select id="reportMode"><option value="day">按天统计</option><option value="month">按月统计</option></select></div><div class="field daySel"><label>选择日期</label><input id="reportDay" type="date"></div><div class="field monthSel" style="display:none"><label>选择月份</label><input id="reportMonth" type="month"></div><div class="field"><label>楼栋</label><select id="reportBuilding"><option value="">全部楼栋</option><option>A栋</option><option>B栋</option><option>C栋</option></select></div><div class="field"><label>区域</label><select id="reportZone"><option value="">全部区域</option><option value="battle">战斗区</option><option value="regular">常规区</option></select></div><button class="btn primary" onclick="renderReport()">生成统计</button><button class="btn light" onclick="exportCSV()">导出当前统计 CSV</button></div>
+ <div class="toolbar"><div class="field"><label>统计口径</label><select id="reportMode"><option value="day">按天统计</option><option value="month">按月统计</option></select></div><div class="field daySel"><label>选择日期</label><input id="reportDay" type="date"></div><div class="field monthSel" style="display:none"><label>选择月份</label><input id="reportMonth" type="month"></div><div class="field"><label>楼栋</label><select id="reportBuilding"><option value="">全部楼栋</option></select></div><div class="field"><label>区域</label><select id="reportZone"><option value="">全部区域</option><option value="battle">战斗区</option><option value="regular">常规区</option></select></div><button class="btn primary" onclick="renderReport()">生成统计</button><button class="btn light" onclick="exportCSV()">导出当前统计 CSV</button></div>
  <div class="stats" id="reportStats"></div>
  <div class="chartgrid"><div class="card"><div class="section-title">叫醒结果分布</div><div id="bars"></div><div class="legend"><span><i style="background:#19a66a"></i>应答</span><span><i style="background:#e4232e"></i>未应答</span><span><i style="background:#f59d23"></i>请假</span><span><i style="background:#78869b"></i>无课</span></div></div><div class="card"><div class="section-title">男女生应答对比</div><div class="genderbox" id="genderReport"></div></div></div>
  <div class="card" style="padding:0"><div style="padding:15px" class="section-title">按日期明细</div><div class="tablebox"><table class="table" style="min-width:850px"><thead><tr><th>日期</th><th>应答</th><th>未应答</th><th>请假</th><th>无课</th><th>未登记</th><th>男生应答率</th><th>女生应答率</th><th>整体应答率</th></tr></thead><tbody id="reportBody"></tbody></table></div></div>
 </section>
-<div class="foot">上岸公寓管理原型 · 正式部署时请由技术人员配置鉴权与真实业务接口</div>
+<div class="foot">上岸公寓 · 已接入工作台真实数据，叫醒记录与「叫醒服务」共用</div>
 </main><div class="toast" id="toast"></div>
 <script>
+(function(){
+ var _fetch=window.fetch;
+ window.fetch=function(url,opts){
+  opts=opts||{};opts.headers=opts.headers||{};
+  var tok=localStorage.getItem('ams_session');
+  if(tok)opts.headers['X-Session-Token']=tok;
+  return _fetch(url,opts);
+ };
+})();
 const today=new Date().toISOString().slice(0,10);document.querySelectorAll('#day,#reportDay').forEach(x=>x.value=today);document.getElementById('reportMonth').value=today.slice(0,7);
-const namesM=['张磊','李浩','王晨','赵凯','陈宇','刘洋','孙博','周航'],namesF=['李欣','王雪','赵悦','陈琳','刘佳','孙萌','周雨','杨静'];
-const roomTypes=['无烟宿舍','安静宿舍','常规宿舍'];let beds=[];let id=1;
-['A栋','B栋','C栋'].forEach((b,bi)=>[3,5,6,8].forEach((floor,fi)=>{let gender=(bi+fi)%2===0?'男生':'女生';for(let r=1;r<=2;r++){let room=''+floor+'0'+r;let rt=roomTypes[(bi+fi+r)%3];for(let k=1;k<=4;k++){let occupied=(id%5!==0), status=!occupied?(id%3===0?'空脏床':'空净床'):'在住';beds.push({id:id++,building:b,floor,room,roomType:rt,bed:k+'号床',gender,student:occupied?(gender==='男生'?namesM[id%namesM.length]:namesF[id%namesF.length]):'—',status,updated:'刚刚'});}}}));
-let records={};function recordKey(date,bedId){return date+'_'+bedId}function seededStatus(date,bed){let n=(Number(date.replaceAll('-',''))+bed.id*7)%11;if(bed.status!=='在住')return '无课';return n<6?'应答':n<8?'未应答':n===8?'请假':n===9?'无课':''}
-// 为演示月统计预置当前月截至今日的确定性记录
-let nowDay=Number(today.slice(8,10));for(let d=1;d<=nowDay;d++){let ds=today.slice(0,8)+String(d).padStart(2,'0');beds.forEach(b=>records[recordKey(ds,b.id)]=seededStatus(ds,b))}
-function getWake(date,b){return records[recordKey(date,b.id)]??''}function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function filtered(){let b=document.getElementById('building').value,z=document.getElementById('zone').value,rt=document.getElementById('roomType').value,g=document.getElementById('gender').value,w=document.getElementById('wakeFilter').value,q=document.getElementById('keyword').value.trim().toLowerCase(),date=document.getElementById('day').value;return beds.filter(x=>(!b||x.building===b)&&(!z||(z==='battle'?[5,8].includes(x.floor):![5,8].includes(x.floor)))&&(!rt||x.roomType===rt)&&(!g||x.gender===g)&&(!w||(w==='未登记'?!getWake(date,x):getWake(date,x)===w))&&(!q||(x.room+x.bed+x.student).toLowerCase().includes(q)))}
+let beds=[],records={},zone={floors:[],beds:[]},smokeRooms=[],currentHotel='',loadedMonth='';
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function floorNum(f){let m=(f||'').match(/(\d+)/);return m?parseInt(m[1]):0}
+function roomNum(r){let m=(r||'').match(/(\d+)/);return m?parseInt(m[1]):99999}
+function normRoomName(rn){let n=String(rn||'').replace(/（[^）]*）/g,'').replace(/\([^)]*\)/g,'');let parts=n.split('-').map(p=>p.trim()).filter(p=>p);if(!parts.length)return rn;let first=parts[0];if(/[A-Za-z]/.test(first))return first;if(/^\d+$/.test(first))return first;return parts.slice(0,2).join('-')}
+function recordKey(date,b){return date+'_'+(b.roomCode||'')+'_'+(b.bedNo||'')}
+function getWake(date,b){return records[recordKey(date,b)]||''}
+function showMsg(msg){document.getElementById('tbody').innerHTML='<tr><td colspan="11" class="empty">'+esc(msg)+'</td></tr>';document.getElementById('bedStats').innerHTML='';document.getElementById('resultCount').textContent=''}
+async function loadCampus(){
+ try{
+  const r=await fetch('/api/hotels');const d=await r.json();
+  const hotels=d.hotels||{};const sel=document.getElementById('campus');const keys=Object.keys(hotels);
+  if(!keys.length){showMsg('暂无可用校区，请联系管理员配置权限');return}
+  sel.innerHTML=keys.map(k=>'<option value="'+k+'">'+esc(hotels[k])+'</option>').join('');
+  sel.onchange=()=>{currentHotel=sel.value;loadData()};
+  currentHotel=sel.value;loadData();
+ }catch(e){showMsg('加载校区失败：'+e.message)}
+}
+async function loadData(){
+ if(!currentHotel)return;
+ const date=document.getElementById('day').value,month=date.slice(0,7);
+ const body=document.getElementById('tbody');
+ body.innerHTML='<tr><td colspan="11" class="empty">正在加载真实数据…</td></tr>';
+ try{
+  const [roomRes,occRes,recRes,zoneRes,sfRes]=await Promise.all([
+   fetch('/api/hotel/web/basics/room/list/'+currentHotel),
+   fetch('/api/hotel/web/business/checkOrder/listAcc/'+currentHotel+'?pageSize=2000'),
+   fetch('/api/wake/records?start_date='+month+'-01&end_date='+date+'&hotel_id='+currentHotel),
+   fetch('/api/battle/zones?hotel_id='+currentHotel),
+   fetch('/api/smokefree/rooms?hotel_id='+currentHotel)]);
+  const rd=await roomRes.json(),od=await occRes.json(),wd=await recRes.json(),zd=await zoneRes.json(),sd=await sfRes.json();
+  if(rd.code===401||od.code===401||wd.code===401){showMsg('登录已过期，请返回工作台重新登录');return}
+  if(!Array.isArray(rd.data)){showMsg('获取床位失败：'+(rd.msg||'上游服务暂不可达，请稍后重试'));return}
+  const zr=(zd.data||[])[0]||{floors:'[]',beds:'[]'};
+  zone={floors:JSON.parse(zr.floors||'[]'),beds:JSON.parse(zr.beds||'[]')};
+  smokeRooms=JSON.parse((sd.data||[])[0]?.rooms||'[]');
+  const occExact={},occNorm={},occNum={};
+  (od.rows||[]).forEach(p=>{
+   const rn=p.roomName||'';const person={name:p.name||'',gsex:p.gsex};
+   if(rn)(occExact[rn]=occExact[rn]||[]).push(person);
+   const nm=normRoomName(rn);if(nm)(occNorm[nm]=occNorm[nm]||[]).push(person);
+   const m=rn.match(/(\d{2,4})(?:-\d+)?$/);if(m)(occNum[m[1]]=occNum[m[1]]||[]).push(person);
+  });
+  const statusMap={VC:'空净床',VD:'空脏床',OC:'在住'};
+  beds=(rd.data||[]).filter(r=>/-\d+$/.test(r.roomName||'')).map((r,i)=>{
+   const rn=r.roomName,idx=rn.lastIndexOf('-'),room=rn.slice(0,idx),bedNo=rn.slice(idx+1);
+   let occs=occExact[rn]||[];
+   if(!occs.length&&r.roomStateCode==='OC')occs=occNorm[normRoomName(rn)]||[];
+   if(!occs.length&&r.roomStateCode==='OC'){const m=rn.match(/(\d{2,4})(?:-\d+)?$/);if(m)occs=occNum[m[1]]||[]}
+   const student=occs.map(o=>o.name).join('、');
+   let gender=(r.roomFloorName||'').includes('男')?'男生':(r.roomFloorName||'').includes('女')?'女生':'';
+   if(!gender&&occs[0])gender=occs[0].gsex==='2'?'女生':occs[0].gsex==='1'?'男生':'';
+   return {id:i+1,building:r.roomBuildName||'',floor:floorNum(r.roomFloorName),room,roomName:rn,bed:bedNo+'号床',bedNo,roomCode:r.roomCode||'',parentCode:r.parentCode||'',roomType:smokeRooms.includes(r.parentCode)?'无烟宿舍':'常规宿舍',gender,student:student||'—',status:statusMap[r.roomStateCode]||'空净床',updated:''};
+  });
+  beds.sort((a,b)=>a.building.localeCompare(b.building)||a.floor-b.floor||roomNum(a.room)-roomNum(b.room)||(parseInt(a.bedNo)||0)-(parseInt(b.bedNo)||0));
+  records={};
+  (wd.data||[]).forEach(rec=>{records[rec.record_date+'_'+rec.room_code+'_'+rec.bed_name]=rec.wake_status});
+  loadedMonth=month;
+  const bSel=document.getElementById('building');
+  const curB=bSel.value;
+  const builds=[...new Set(beds.map(b=>b.building).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh'));
+  bSel.innerHTML='<option value="">全部楼栋</option>'+builds.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
+  if(curB&&builds.includes(curB))bSel.value=curB;
+  const rSel=document.getElementById('reportBuilding');
+  const curRB=rSel.value;
+  rSel.innerHTML='<option value="">全部楼栋</option>'+builds.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
+  if(curRB&&builds.includes(curRB))rSel.value=curRB;
+  render();renderReport();
+ }catch(e){showMsg('加载失败：'+e.message);console.error(e)}
+}
+function isBattle(x){return (zone.floors||[]).includes(x.floor)||(zone.beds||[]).includes(x.roomCode)}
+function filtered(){let b=document.getElementById('building').value,z=document.getElementById('zone').value,rt=document.getElementById('roomType').value,g=document.getElementById('gender').value,w=document.getElementById('wakeFilter').value,q=document.getElementById('keyword').value.trim().toLowerCase(),date=document.getElementById('day').value;return beds.filter(x=>(!b||x.building===b)&&(!z||(z==='battle'?isBattle(x):!isBattle(x)))&&(!rt||x.roomType===rt)&&(!g||x.gender===g)&&(!w||(w==='未登记'?!getWake(date,x):getWake(date,x)===w))&&(!q||(x.room+x.bed+x.student).toLowerCase().includes(q)))}
 function statCard(label,n,color,sub=''){return `<div class="stat" style="--c:${color}"><div class="l">${label}</div><div class="n">${n}</div><div class="p">${sub}</div></div>`}
 function render(){let list=filtered(),date=document.getElementById('day').value;let c=s=>list.filter(x=>x.status===s).length,w=s=>list.filter(x=>(getWake(date,x)||'未登记')===s).length;document.getElementById('bedStats').innerHTML=statCard('空净床',c('空净床'),'#19a66a','可立即入住')+statCard('空脏床',c('空脏床'),'#f59d23','待打扫')+statCard('已锁床',c('已锁床'),'#78869b','暂停使用')+statCard('在住床',c('在住'),'#2684ff','当前在住')+statCard('叫醒应答',w('应答'),'#19a66a',date)+statCard('未应答',w('未应答'),'#e4232e',date)+statCard('请假',w('请假'),'#f59d23',date)+statCard('无课/未登记',w('无课')+w('未登记'),'#78869b',date);document.getElementById('resultCount').textContent=`共 ${list.length} 个床位`;
- document.getElementById('tbody').innerHTML=list.length?list.map(x=>{let battle=[5,8].includes(x.floor),wake=getWake(date,x);return `<tr><td><b>${x.building}</b></td><td>${x.floor}楼<br><span class="tag ${battle?'battle':'regular'}">${battle?'⚡ 战斗区':'常规区'}</span></td><td class="room">${x.room}</td><td><span class="tag ${x.roomType==='无烟宿舍'?'smoke':x.roomType==='安静宿舍'?'quiet':'normal'}">${x.roomType}</span></td><td class="bed">${x.bed}</td><td><span class="tag ${x.gender==='男生'?'male':'female'}">${x.gender}</span></td><td>${esc(x.student)}</td><td class="${x.status==='空净床'?'clean':x.status==='空脏床'?'dirty':x.status==='已锁床'?'locked':'occupied'}">${x.status}</td><td><div class="wake ${x.status==='在住'?'':'disabled'}">${['应答','未应答','请假','无课'].map((s,i)=>`<button class="${['answer','noanswer','leave','noclass'][i]} ${wake===s?'active':''}" onclick="setWake(${x.id},'${s}')">${s}</button>`).join('')}</div></td><td><div class="acts"><button class="mini sweep ${x.status==='空脏床'?'':'disabled'}" onclick="cleanBed(${x.id})">打扫</button><button class="mini ${x.status==='已锁床'?'unlock':'lock'}" onclick="toggleLock(${x.id})">${x.status==='已锁床'?'解锁':'锁床'}</button></div></td><td>${x.updated}</td></tr>`}).join(''):`<tr><td colspan="11" class="empty">暂无符合条件的数据</td></tr>`}
-function setWake(id,status){let date=document.getElementById('day').value,b=beds.find(x=>x.id===id);records[recordKey(date,id)]=status;b.updated=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});toast(`${b.building}${b.room}-${b.bed} 已标记为“${status}”`);render();renderReport()}
-function cleanBed(id){let b=beds.find(x=>x.id===id);if(b.status==='空脏床'){b.status='空净床';b.updated='刚刚';toast(`${b.building}${b.room}-${b.bed} 打扫完成`);render()}}
-function toggleLock(id){let b=beds.find(x=>x.id===id);if(b.status==='已锁床'){b.status=b.prev||'空净床';toast('床位已解锁')}else{b.prev=b.status;b.status='已锁床';toast('床位已锁定')}b.updated='刚刚';render()}
-function batchWakeNoAnswer(){let date=document.getElementById('day').value,list=filtered().filter(x=>[5,8].includes(x.floor)&&x.status==='在住'&&!getWake(date,x));list.forEach(x=>records[recordKey(date,x.id)]='未应答');toast(`已将 ${list.length} 个战斗区未登记床位标记为未应答`);render();renderReport()}
+ document.getElementById('tbody').innerHTML=list.length?list.map(x=>{let battle=isBattle(x),wake=getWake(date,x);return `<tr><td><b>${x.building}</b></td><td>${x.floor}楼<br><span class="tag ${battle?'battle':'regular'}">${battle?'⚡ 战斗区':'常规区'}</span></td><td class="room">${x.room}</td><td><span class="tag ${x.roomType==='无烟宿舍'?'smoke':x.roomType==='安静宿舍'?'quiet':'normal'}">${x.roomType}</span></td><td class="bed">${x.bed}</td><td><span class="tag ${x.gender==='男生'?'male':'female'}">${x.gender}</span></td><td>${esc(x.student)}</td><td class="${x.status==='空净床'?'clean':x.status==='空脏床'?'dirty':x.status==='已锁床'?'locked':'occupied'}">${x.status}</td><td><div class="wake ${x.status==='在住'?'':'disabled'}">${['应答','未应答','请假','无课'].map((s,i)=>`<button class="${['answer','noanswer','leave','noclass'][i]} ${wake===s?'active':''}" onclick="setWake(${x.id},'${s}')">${s}</button>`).join('')}</div></td><td><div class="acts"><button class="mini sweep ${x.status==='空脏床'?'':'disabled'}" onclick="cleanBed(${x.id})">打扫</button><button class="mini ${x.status==='已锁床'?'unlock':'lock'}" onclick="toggleLock(${x.id})">${x.status==='已锁床'?'解锁':'锁床'}</button></div></td><td>${x.updated}</td></tr>`}).join(''):`<tr><td colspan="11" class="empty">暂无符合条件的数据</td></tr>`}
+async function setWake(id,status){let date=document.getElementById('day').value,b=beds.find(x=>x.id===id);if(!b)return;records[recordKey(date,b)]=status;b.updated=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});try{await fetch('/api/wake/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,hotel_id:currentHotel,room_code:b.roomCode,room_name:b.roomName,bed_name:b.bedNo,student_name:b.student==='—'?'':b.student,gender:b.gender==='女生'?'女':b.gender==='男生'?'男':'',wake_status:status})});toast(`${b.building}${b.room}-${b.bed} 已标记为“${status}”`)}catch(e){toast('保存失败：'+e.message)}render();renderReport()}
+function cleanBed(id){let b=beds.find(x=>x.id===id);if(b.status==='空脏床'){b.status='空净床';b.updated='刚刚';toast(`${b.building}${b.room}-${b.bed} 打扫完成（演示操作，仅当前页面生效）`);render()}}
+function toggleLock(id){let b=beds.find(x=>x.id===id);if(b.status==='已锁床'){b.status=b.prev||'空净床';toast('床位已解锁（演示操作，仅当前页面生效）')}else{b.prev=b.status;b.status='已锁床';toast('床位已锁定（演示操作，仅当前页面生效）')}b.updated='刚刚';render()}
+async function batchWakeNoAnswer(){let date=document.getElementById('day').value,list=filtered().filter(x=>isBattle(x)&&x.status==='在住'&&!getWake(date,x));if(!list.length){toast('没有需要批量标记的战斗区床位');return}let ok=0;for(const b of list){records[recordKey(date,b)]='未应答';try{await fetch('/api/wake/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,hotel_id:currentHotel,room_code:b.roomCode,room_name:b.roomName,bed_name:b.bedNo,student_name:b.student==='—'?'':b.student,gender:b.gender==='女生'?'女':b.gender==='男生'?'男':'',wake_status:'未应答'})});ok++}catch(e){}}toast(`已将 ${ok} 个战斗区未登记床位标记为未应答`);render();renderReport()}
 function resetFilters(){['building','zone','roomType','gender','wakeFilter'].forEach(id=>document.getElementById(id).value='');document.getElementById('keyword').value='';render()}
 function toast(msg){let t=document.getElementById('toast');t.textContent=msg;t.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>t.style.display='none',2200)}
 function datesInMonth(month){let [y,m]=month.split('-').map(Number),days=new Date(y,m,0).getDate(),arr=[];for(let d=1;d<=days;d++)arr.push(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);return arr}
-function reportBeds(){let b=document.getElementById('reportBuilding').value,z=document.getElementById('reportZone').value;return beds.filter(x=>(!b||x.building===b)&&(!z||(z==='battle'?[5,8].includes(x.floor):![5,8].includes(x.floor))))}
+function reportBeds(){let b=document.getElementById('reportBuilding').value,z=document.getElementById('reportZone').value;return beds.filter(x=>(!b||x.building===b)&&(!z||(z==='battle'?isBattle(x):!isBattle(x))))}
 function dayMetrics(date,list){let out={date,应答:0,未应答:0,请假:0,无课:0,未登记:0,mA:0,mT:0,fA:0,fT:0};list.forEach(x=>{let s=getWake(date,x)||'未登记';out[s]++;if(!['请假','无课','未登记'].includes(s)){if(x.gender==='男生'){out.mT++;if(s==='应答')out.mA++}else{out.fT++;if(s==='应答')out.fA++}}});out.total=out.应答+out.未应答;out.rate=out.total?out.应答/out.total:0;return out}
 function pct(a,b){return b?Math.round(a/b*100)+'%':'—'}let lastReport=[];
 function renderReport(){let mode=document.getElementById('reportMode').value,list=reportBeds(),dates=mode==='day'?[document.getElementById('reportDay').value]:datesInMonth(document.getElementById('reportMonth').value);lastReport=dates.map(d=>dayMetrics(d,list));let sum=k=>lastReport.reduce((a,x)=>a+x[k],0),ans=sum('应答'),no=sum('未应答'),leave=sum('请假'),nc=sum('无课'),un=sum('未登记'),den=ans+no;
- document.getElementById('reportStats').innerHTML=statCard('应答',ans,'#19a66a','有效应答')+statCard('未应答',no,'#e4232e','需重点跟进')+statCard('请假',leave,'#f59d23','已登记请假')+statCard('无课',nc,'#78869b','当日无课')+statCard('未登记',un,'#9aa5b5','待登记')+statCard('整体应答率',pct(ans,den),'#2684ff','应答 ÷（应答+未应答）')+statCard('战斗区床位',list.filter(x=>[5,8].includes(x.floor)).length,'#af6200','5楼、8楼')+statCard('统计天数',dates.length,'#7d5ce7',mode==='day'?'日统计':'月统计');
+ document.getElementById('reportStats').innerHTML=statCard('应答',ans,'#19a66a','有效应答')+statCard('未应答',no,'#e4232e','需重点跟进')+statCard('请假',leave,'#f59d23','已登记请假')+statCard('无课',nc,'#78869b','当日无课')+statCard('未登记',un,'#9aa5b5','待登记')+statCard('整体应答率',pct(ans,den),'#2684ff','应答 ÷（应答+未应答）')+statCard('战斗区床位',list.filter(isBattle).length,'#af6200','按战斗区配置')+statCard('统计天数',dates.length,'#7d5ce7',mode==='day'?'日统计':'月统计');
  let vals=[['应答',ans,'#19a66a'],['未应答',no,'#e4232e'],['请假',leave,'#f59d23'],['无课',nc,'#78869b'],['未登记',un,'#aeb6c2']],max=Math.max(1,...vals.map(x=>x[1]));document.getElementById('bars').innerHTML=vals.map(x=>`<div class="barrow"><span>${x[0]}</span><div class="track"><div class="fill" style="width:${x[1]/max*100}%;background:${x[2]}"></div></div><b>${x[1]}</b></div>`).join('');let mA=sum('mA'),mT=sum('mT'),fA=sum('fA'),fT=sum('fT');document.getElementById('genderReport').innerHTML=`<div class="genderitem"><span class="tag male">男生</span><div class="big" style="color:#176ac4">${pct(mA,mT)}</div><div class="rate">应答 ${mA} / 有效叫醒 ${mT}</div></div><div class="genderitem"><span class="tag female">女生</span><div class="big" style="color:#c83b6d">${pct(fA,fT)}</div><div class="rate">应答 ${fA} / 有效叫醒 ${fT}</div></div>`;
  document.getElementById('reportBody').innerHTML=lastReport.map(x=>`<tr><td><b>${x.date}</b></td><td class="clean">${x.应答}</td><td style="color:#e4232e;font-weight:800">${x.未应答}</td><td>${x.请假}</td><td>${x.无课}</td><td>${x.未登记}</td><td>${pct(x.mA,x.mT)}</td><td>${pct(x.fA,x.fT)}</td><td><b>${Math.round(x.rate*100)}%</b></td></tr>`).join('')}
 function exportCSV(){renderReport();let rows=[['日期','应答','未应答','请假','无课','未登记','男生应答率','女生应答率','整体应答率'],...lastReport.map(x=>[x.date,x.应答,x.未应答,x.请假,x.无课,x.未登记,pct(x.mA,x.mT),pct(x.fA,x.fT),Math.round(x.rate*100)+'%'])];let csv='\ufeff'+rows.map(r=>r.join(',')).join('\n'),blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='叫醒统计_'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(a.href)}
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('on'));t.classList.add('on');document.getElementById(t.dataset.panel).classList.add('on');if(t.dataset.panel==='report')renderReport()});document.getElementById('reportMode').onchange=e=>{document.querySelector('.daySel').style.display=e.target.value==='day'?'block':'none';document.querySelector('.monthSel').style.display=e.target.value==='month'?'block':'none';renderReport()};document.getElementById('day').onchange=render;setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleString('zh-CN'),1000);render();renderReport();
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('on'));t.classList.add('on');document.getElementById(t.dataset.panel).classList.add('on');if(t.dataset.panel==='report')renderReport()});document.getElementById('reportMode').onchange=e=>{document.querySelector('.daySel').style.display=e.target.value==='day'?'block':'none';document.querySelector('.monthSel').style.display=e.target.value==='month'?'block':'none';renderReport()};document.getElementById('day').onchange=async function(){const date=this.value;if(currentHotel&&date.slice(0,7)!==loadedMonth){const month=date.slice(0,7);try{const r=await fetch('/api/wake/records?start_date='+month+'-01&end_date='+date+'&hotel_id='+currentHotel);const d=await r.json();(d.data||[]).forEach(rec=>{records[rec.record_date+'_'+rec.room_code+'_'+rec.bed_name]=rec.wake_status});loadedMonth=month}catch(e){}}render()};setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleString('zh-CN'),1000);loadCampus();
 </script>
 </body></html>

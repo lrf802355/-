@@ -76,15 +76,15 @@ API_MODULE_RULES = [
     ("/api/weekly/", ["weekly"]),
     ("/api/board/", ["board"]),
     ("/api/test", ["test"]),
-    ("/api/wake/", ["bedmanage"]),
-    ("/api/battle/", ["bedmanage"]),
-    ("/api/smokefree/", ["bedmanage"]),
+    ("/api/wake/", ["bedmanage", "beddemo"]),
+    ("/api/battle/", ["bedmanage", "beddemo"]),
+    ("/api/smokefree/", ["bedmanage", "beddemo"]),
     ("/api/beddemo/", ["beddemo"]),
     ("/api/linen/", ["linen"]),
     ("/api/payroll/", ["payroll"]),
-    ("/api/hotel/web/basics/", ["info", "rooms", "bedmanage", "test"]),
-    ("/api/hotel/web/business/checkOrder/", ["staff", "residents", "bedmanage"]),
-    ("/api/hotel/web/", ["info", "rooms", "staff", "residents", "bedmanage", "test"]),
+    ("/api/hotel/web/basics/", ["info", "rooms", "bedmanage", "beddemo", "test"]),
+    ("/api/hotel/web/business/checkOrder/", ["staff", "residents", "bedmanage", "beddemo"]),
+    ("/api/hotel/web/", ["info", "rooms", "staff", "residents", "bedmanage", "beddemo", "test"]),
 ]
 
 
