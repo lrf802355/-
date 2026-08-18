@@ -1297,7 +1297,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>楼栋</th><th>楼层</th><th>房间</th><th>床位</th><th>性别</th><th>学员</th>
+                            <th>楼栋</th><th>楼层</th><th>房间</th><th>类型</th><th>床位</th><th>性别</th><th>学员</th>
                             <th>床位状态</th><th>叫醒结果</th><th>操作</th>
                         </tr>
                     </thead>
@@ -3624,6 +3624,7 @@
         // ========== 叫醒服务（AMS只读 + 叫醒登记）==========
         let bmCache = {};  // hotelId -> {bldgName, floorName, rooms[]}
         let bmZones = {};  // hotelId -> {floors:[], beds:[]}
+        let bmSmokeFree = {};  // hotelId -> [房间码]（无烟宿舍）
         let bmRecords = {};  // date_hotelId -> {roomCode_bedName: status}
 
         async function initBedManage() {
@@ -3641,6 +3642,12 @@
                 const r = await fetch('/api/battle/zones');
                 const d = await r.json();
                 (d.data || []).forEach(z => { bmZones[z.hotel_id] = {floors: JSON.parse(z.floors || '[]'), beds: JSON.parse(z.beds || '[]')}; });
+            // 加载无烟宿舍配置
+            try {
+                const r2 = await fetch('/api/smokefree/rooms');
+                const d2 = await r2.json();
+                (d2.data || []).forEach(z => { bmSmokeFree[z.hotel_id] = JSON.parse(z.rooms || '[]'); });
+            } catch(e) {}
             } catch(e) {}
             loadBedManage();
         }
@@ -3651,8 +3658,8 @@
             const body = document.getElementById('bmBody');
             const count = document.getElementById('bmCount');
             const stats = document.getElementById('bmStats');
-            if (!hotelId) { body.innerHTML = '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">请选择校区</td></tr>'; return; }
-            body.innerHTML = '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">加载中...</td></tr>';
+            if (!hotelId) { body.innerHTML = '<tr><td colspan="10" style="color:#86909c;text-align:center;padding:30px">请选择校区</td></tr>'; return; }
+            body.innerHTML = '<tr><td colspan="10" style="color:#86909c;text-align:center;padding:30px">加载中...</td></tr>';
 
             try {
                 // 1. 拉AMS全量床位（room/list 每张床一条记录，自带楼栋/楼层/状态）
@@ -3664,7 +3671,7 @@
                     return {
                         build: r.roomBuildName || '', floor: r.roomFloorName || '',
                         room: rn.slice(0, idx), bedNo: rn.slice(idx + 1),
-                        roomCode: r.roomCode || '', roomName: rn, status: r.roomStateCode || ''
+                        roomCode: r.roomCode || '', parentCode: r.parentCode || '', roomName: rn, status: r.roomStateCode || ''
                     };
                 });
                 // 排序：楼栋 → 楼层号 → 房号 → 床位号
@@ -3737,14 +3744,16 @@
                     const student = occs.map(o => o.name).join('、');
                     let gender = (b.floor || '').includes('男') ? '男' : (b.floor || '').includes('女') ? '女' : '';
                     if (!gender && occs[0]) gender = occs[0].gsex === '2' ? '女' : occs[0].gsex === '1' ? '男' : '';
+                    const sf = (bmSmokeFree[hotelId] || []).includes(b.parentCode);
                     const battle = isBattle(b);
                     const wakeKey = b.roomCode + '_' + b.bedNo;
                     const wk = recMap[wakeKey] || '';
                     const isOccupied = b.status === 'OC';
-                    html += '<tr style="' + (battle ? 'background:#fff7e6' : '') + '" data-rc="' + b.roomCode + '" data-bed="' + b.bedNo + '" data-room="' + b.room + '" data-stu="' + student + '" data-gen="' + gender + '">' +
+                    html += '<tr style="' + (battle ? 'background:#fff7e6' : '') + '" data-rc="' + b.roomCode + '" data-bed="' + b.bedNo + '" data-room="' + b.room + '" data-stu="' + student + '" data-gen="' + gender + '" data-parent="' + (b.parentCode || '') + '">' +
                         '<td>' + b.build + '</td>' +
                         '<td>' + b.floor + '</td>' +
                         '<td>' + b.room + '</td>' +
+                        '<td style="text-align:center"><span class="sf-tag" onclick="toggleSmokeFree(this,\'' + hotelId + '\')" style="cursor:pointer;padding:3px 9px;border-radius:12px;font-size:0.75rem;font-weight:700;' + (sf ? 'background:#e6f7ff;color:#0b7ea8;border:1px solid #b5e5f5' : 'background:#f2f3f5;color:#86909c;border:1px solid #e5e6eb') + '\">' + (sf ? '🚭 无烟' : '普通') + '</span></td>' +
                         '<td>' + b.bedNo + '</td>' +
                         '<td>' + (gender || '-') + '</td>' +
                         '<td>' + (student || '-') + '</td>' +
@@ -3753,7 +3762,7 @@
                         '<td>' + (isOccupied ? wakeBtns : '<span style="color:#c0c4cc;font-size:0.75rem">非在住</span>') + '</td>' +
                         '</tr>';
                 });
-                body.innerHTML = html || '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">无床位数据</td></tr>';
+                body.innerHTML = html || '<tr><td colspan="10" style="color:#86909c;text-align:center;padding:30px">无床位数据</td></tr>';
                 count.textContent = shown.length + ' / 共 ' + beds.length + ' 个床位' + (floorSel ? '（' + floorSel + '楼）' : '');
 
                 // 5. 统计
@@ -3772,11 +3781,39 @@
                     '<div style="font-size:0.75rem;color:#86909c">' + c[0] + '</div>' +
                     '<div style="font-size:1.4rem;font-weight:800;color:' + c[2] + '"' + (c[0] === '⚔战斗区' ? ' id="bmStatBattle"' : '') + '>' + c[1] + '</div></div>').join('');
             } catch(e) {
-                body.innerHTML = '<tr><td colspan="9" style="color:#f53f3f;text-align:center;padding:30px">加载失败: ' + e.message + '</td></tr>';
+                body.innerHTML = '<tr><td colspan="10" style="color:#f53f3f;text-align:center;padding:30px">加载失败: ' + e.message + '</td></tr>';
             }
         }
 
 
+
+        // 切换房间"无烟宿舍"标签（房间级，同房间所有床位同步）
+        async function toggleSmokeFree(el, hotelId) {
+            const tr = el.closest('tr');
+            const parent = tr.getAttribute('data-parent') || '';
+            if (!parent) { alert('数据缺失，无法保存'); return; }
+            const list = bmSmokeFree[hotelId] || (bmSmokeFree[hotelId] = []);
+            const on = list.includes(parent);
+            if (on) bmSmokeFree[hotelId] = list.filter(x => x !== parent);
+            else if (!list.includes(parent)) list.push(parent);
+            const nowOn = bmSmokeFree[hotelId].includes(parent);
+            document.querySelectorAll('#bmBody tr[data-parent="' + parent + '"]').forEach(tr2 => {
+                const span = tr2.querySelector('.sf-tag');
+                if (span) {
+                    span.textContent = nowOn ? '🚭 无烟' : '普通';
+                    span.style.background = nowOn ? '#e6f7ff' : '#f2f3f5';
+                    span.style.color = nowOn ? '#0b7ea8' : '#86909c';
+                }
+            });
+            try {
+                const r = await fetch('/api/smokefree/save', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({hotel_id: hotelId, rooms: bmSmokeFree[hotelId]})
+                });
+                const d = await r.json();
+                if (d.code !== 200) { alert('❌ ' + (d.msg || '保存失败')); }
+            } catch(e) { alert('❌ ' + e.message); }
+        }
         // ===== 日/月叫醒统计（真实数据）=====
         let bmRoomsCache = {};  // hotelId -> [床位]
         let wsRows = [];        // 最近一次统计明细（导出用）
@@ -3791,7 +3828,7 @@
                 return {
                     build: r.roomBuildName || '', floor: r.roomFloorName || '',
                     room: rn.slice(0, idx), bedNo: rn.slice(idx + 1),
-                    roomCode: r.roomCode || '', roomName: rn, status: r.roomStateCode || ''
+                    roomCode: r.roomCode || '', parentCode: r.parentCode || '', roomName: rn, status: r.roomStateCode || ''
                 };
             });
             bmRoomsCache[hotelId] = beds;

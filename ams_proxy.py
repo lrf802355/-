@@ -77,6 +77,7 @@ API_MODULE_RULES = [
     ("/api/test", ["test"]),
     ("/api/wake/", ["bedmanage"]),
     ("/api/battle/", ["bedmanage"]),
+    ("/api/smokefree/", ["bedmanage"]),
     ("/api/linen/", ["linen"]),
     ("/api/payroll/", ["payroll"]),
     ("/api/hotel/web/basics/", ["info", "rooms", "bedmanage", "test"]),
@@ -236,6 +237,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.battle_zones(parsed_path.query)
         elif path == "/api/battle/save":
             self.battle_zones_save()
+        elif path == "/api/smokefree/rooms":
+            self.smoke_free_rooms(parsed_path.query)
         elif path.startswith("/api/"):
             api_path = path[4:]
             if parsed_path.query:
@@ -299,6 +302,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.wake_save()
         elif path == "/api/battle/save":
             self.battle_zones_save()
+        elif path == "/api/smokefree/save":
+            self.smoke_free_save()
         elif path.startswith("/api/"):
             api_path = path[4:]
             if parsed_path.query:
@@ -1540,6 +1545,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             beds TEXT
         )""")
         # 旧库补充 beds 列（床位级战斗区）
+        c.execute("""CREATE TABLE IF NOT EXISTS smoke_free (
+            hotel_id TEXT PRIMARY KEY,
+            rooms TEXT
+        )""")
         try:
             c.execute("ALTER TABLE battle_zones ADD COLUMN beds TEXT")
             conn.commit()
@@ -1653,6 +1662,55 @@ class ProxyHandler(BaseHTTPRequestHandler):
             c.execute("INSERT INTO battle_zones (hotel_id, floors, beds) VALUES (?,?,?)",
                       (d.get('hotel_id'), json_mod.dumps(d.get('floors', []), ensure_ascii=False),
                        json_mod.dumps(d.get('beds', []), ensure_ascii=False)))
+            conn.commit()
+            conn.close()
+            return self.send_json({"code": 200, "msg": "保存成功"})
+        except Exception as e:
+            try: conn.close()
+            except Exception: pass
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+
+    def smoke_free_rooms(self, query_string):
+        """查询无烟宿舍配置：?hotel_id=10144 或全部"""
+        from urllib.parse import parse_qs
+        params = parse_qs(query_string)
+        hotel_id = params.get('hotel_id', [''])[0]
+        try:
+            import sqlite3
+            conn = self._wake_db()
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            sql = "SELECT * FROM smoke_free WHERE 1=1"
+            args = []
+            if hotel_id:
+                sql += " AND hotel_id=?"
+                args.append(hotel_id)
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
+            if scope_args:
+                sql += scope_sql
+                args += scope_args
+            c.execute(sql, args)
+            rows = [dict(r) for r in c.fetchall()]
+            conn.close()
+            return self.send_json({"code": 200, "data": rows})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def smoke_free_save(self):
+        """保存无烟宿舍配置：{hotel_id, rooms:[房间码...]}"""
+        import json as json_mod
+        content_length = int(self.headers.get('Content-Length', 0))
+        try:
+            d = json_mod.loads(self.rfile.read(content_length).decode())
+        except Exception:
+            return self.send_json({"code": 400, "msg": "参数错误"}, 400)
+        try:
+            conn = self._wake_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM smoke_free WHERE hotel_id=?", (d.get('hotel_id'),))
+            c.execute("INSERT INTO smoke_free (hotel_id, rooms) VALUES (?,?)",
+                      (d.get('hotel_id'), json_mod.dumps(d.get('rooms', []), ensure_ascii=False)))
             conn.commit()
             conn.close()
             return self.send_json({"code": 200, "msg": "保存成功"})
