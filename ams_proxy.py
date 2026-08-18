@@ -7,17 +7,19 @@ Multi-threaded server for concurrent API requests.
 """
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
-import urllib.request, json, os, uuid
+import urllib.request, json, os, uuid, sqlite3, hashlib, secrets
 from pathlib import Path
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 配置
 TOKEN_PATH = os.path.join(BASE_DIR, "cache", "ams_token.txt")
+AUTH_DB = os.path.join(BASE_DIR, "auth.db")
 AMS_BASE = "https://ams.xintujing.online"
 API_BASE = "https://api.xintujing.online"
 HTML_PATH = os.path.join(BASE_DIR, "ams_system.html")
 PORT = 8899
+SESSION_DAYS = 7
 
 # 校区ID映射
 HOTEL_IDS = {
@@ -31,6 +33,114 @@ HOTEL_IDS = {
     "10140": "塔利南校区",
     "10163": "城际酒店",
 }
+
+# ===== 账号权限系统 =====
+# 模块目录（key 与前端页面一致）
+MODULES = {
+    "summary": "数据汇总",
+    "info": "基本信息",
+    "weekly": "周效比",
+    "staff": "花名册",
+    "residents": "在住名单",
+    "rooms": "楼栋房间",
+    "income": "收入报表",
+    "finance": "财务数据",
+    "payroll": "工资表",
+    "linen": "布草管理",
+    "board": "包住对比",
+    "test": "校区地图",
+    "bedmanage": "床位管理",
+}
+
+# 默认工作区（首次启动自动创建，可在【权限管理】中调整）
+DEFAULT_WORKSPACES = [
+    {"name": "管理后台", "modules": list(MODULES.keys()), "campuses": [], "remark": "管理员专用，拥有全部模块"},
+    {"name": "公寓运营", "modules": ["summary", "info", "weekly", "staff", "residents", "rooms", "test", "bedmanage"],
+     "campuses": [], "remark": "公寓一组/二组日常运营"},
+    {"name": "财务", "modules": ["summary", "income", "finance", "payroll", "board"],
+     "campuses": [], "remark": "收入/财务/工资/包住对比"},
+    {"name": "酒店前台", "modules": ["residents", "rooms", "bedmanage", "test"],
+     "campuses": [], "remark": "前台接待日常使用"},
+]
+
+# 接口 → 模块映射（路径前缀命中即算该模块，管理员不受限）
+API_MODULE_RULES = [
+    ("/api/rooms/query", ["rooms"]),
+    ("/api/room/clean", ["rooms"]),
+    ("/api/finance/query", ["finance"]),
+    ("/api/occupancy/", ["summary", "residents", "info"]),
+    ("/api/residents/", ["residents", "staff"]),
+    ("/api/income/summary", ["summary", "income"]),
+    ("/api/income/records", ["income"]),
+    ("/api/weekly/", ["weekly"]),
+    ("/api/board/", ["board"]),
+    ("/api/test", ["test"]),
+    ("/api/wake/", ["bedmanage"]),
+    ("/api/battle/", ["bedmanage"]),
+    ("/api/linen/", ["linen"]),
+    ("/api/payroll/", ["payroll"]),
+    ("/api/hotel/web/basics/", ["info", "rooms", "bedmanage", "test"]),
+    ("/api/hotel/web/business/checkOrder/", ["staff", "residents", "bedmanage"]),
+    ("/api/hotel/web/", ["info", "rooms", "staff", "residents", "bedmanage", "test"]),
+]
+
+
+def _hash_password(password, salt):
+    """PBKDF2-SHA256 口令散列（内置库，无需额外依赖）"""
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"),
+                               salt.encode("utf-8"), 100000).hex()
+
+
+def init_auth_db():
+    """初始化账号权限库：建表 + 首次启动自动创建默认工作区和管理员"""
+    os.makedirs(os.path.dirname(AUTH_DB), exist_ok=True)
+    conn = sqlite3.connect(AUTH_DB)
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS workspaces (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        modules TEXT NOT NULL DEFAULT '[]',
+        campuses TEXT NOT NULL DEFAULT '[]',
+        remark TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now','localtime'))
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        display_name TEXT DEFAULT '',
+        workspace_ids TEXT NOT NULL DEFAULT '[]',
+        is_admin INTEGER NOT NULL DEFAULT 0,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now','localtime'))
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        expires_at TEXT NOT NULL
+    )""")
+    if c.execute("SELECT COUNT(*) FROM workspaces").fetchone()[0] == 0:
+        for ws in DEFAULT_WORKSPACES:
+            c.execute("INSERT INTO workspaces (name, modules, campuses, remark) VALUES (?,?,?,?)",
+                      (ws["name"], json.dumps(ws["modules"], ensure_ascii=False),
+                       json.dumps(ws["campuses"]), ws.get("remark", "")))
+    if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
+        salt = secrets.token_hex(16)
+        pw_hash = _hash_password("admin123", salt)
+        c.execute("""INSERT INTO users (username, password_hash, salt, display_name, workspace_ids, is_admin, enabled)
+                     VALUES (?,?,?,?,?,1,1)""",
+                  ("admin", pw_hash, salt, "系统管理员", "[]"))
+        try:
+            cache_dir = os.path.join(BASE_DIR, "cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            with open(os.path.join(cache_dir, "初始管理员密码.txt"), "w", encoding="utf-8") as f:
+                f.write("默认管理员账号：admin\n默认密码：admin123\n请登录后尽快在【权限管理】中修改密码。\n")
+        except Exception:
+            pass
+    conn.commit()
+    conn.close()
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """Multi-threaded — REQUIRED: frontend sends parallel requests."""
@@ -46,6 +156,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
         parsed_path = urlparse(self.path)
         path = parsed_path.path
 
+        # 模块权限校验（/api/status 保持公开，供健康检查）
+        if path.startswith("/api/") and path != "/api/status":
+            code, msg = self._check_api_access(path)
+            if code:
+                return self.send_json({"code": code, "msg": msg}, code)
+
         if path == "/" or path == "/index.html":
             self.serve_html()
         elif path == "/api/status":
@@ -57,8 +173,19 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.send_json({"logged_in": valid})
             except Exception as e:
                 self.send_json({"logged_in": False, "error": str(e)})
+        elif path == "/api/auth/me":
+            self.auth_me()
+        elif path == "/api/auth/modules":
+            self.auth_modules()
+        elif path == "/api/auth/workspaces":
+            self.auth_workspaces_list()
+        elif path == "/api/auth/users":
+            self.auth_users_list()
         elif path == "/api/hotels":
-            self.send_json({"hotels": HOTEL_IDS})
+            user = self._session_user()
+            scope = self._campus_scope(user)
+            hotels = {k: v for k, v in HOTEL_IDS.items() if not scope or k in scope}
+            self.send_json({"hotels": hotels})
         elif path == "/api/rooms/query":
             self.query_rooms(parsed_path.query)
         elif path == "/api/finance/query":
@@ -132,7 +259,21 @@ class ProxyHandler(BaseHTTPRequestHandler):
         parsed_path = urlparse(self.path)
         path = parsed_path.path
 
-        if path == "/api/login":
+        # 模块权限校验（登录接口公开）
+        if path.startswith("/api/") and path not in ("/api/auth/login", "/api/login"):
+            code, msg = self._check_api_access(path)
+            if code:
+                return self.send_json({"code": code, "msg": msg}, code)
+
+        if path == "/api/auth/login":
+            self.auth_login()
+        elif path == "/api/auth/logout":
+            self.auth_logout()
+        elif path == "/api/auth/workspaces":
+            self.auth_workspaces_create()
+        elif path == "/api/auth/users":
+            self.auth_users_create()
+        elif path == "/api/login":
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             try:
@@ -169,11 +310,29 @@ class ProxyHandler(BaseHTTPRequestHandler):
         from urllib.parse import urlparse
         parsed_path = urlparse(self.path)
         path = parsed_path.path
-        if path.startswith("/api/"):
+        if path.startswith("/api/auth/workspaces/"):
+            self.auth_workspaces_update(path[len("/api/auth/workspaces/"):])
+        elif path.startswith("/api/auth/users/"):
+            self.auth_users_update(path[len("/api/auth/users/"):])
+        elif path.startswith("/api/"):
+            code, msg = self._check_api_access(path)
+            if code:
+                return self.send_json({"code": code, "msg": msg}, code)
             api_path = path[4:]
             if parsed_path.query:
                 api_path += "?" + parsed_path.query
             self.proxy_api_put(api_path)
+        else:
+            self.send_error(404)
+
+    def do_DELETE(self):
+        """支持DELETE请求（账号/工作区删除，仅管理员）"""
+        from urllib.parse import urlparse
+        path = urlparse(self.path).path
+        if path.startswith("/api/auth/workspaces/"):
+            self.auth_workspaces_delete(path[len("/api/auth/workspaces/"):])
+        elif path.startswith("/api/auth/users/"):
+            self.auth_users_delete(path[len("/api/auth/users/"):])
         else:
             self.send_error(404)
 
@@ -286,6 +445,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 query += " AND floor_name LIKE ?"
                 count_query += " AND floor_name LIKE ?"
                 params_list.append(f"%{floor_name}%")
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
+            if scope_args:
+                query += scope_sql
+                count_query += scope_sql
+                params_list += scope_args
             
             query += " ORDER BY hotel_name, floor_name, room_name"
             
@@ -355,6 +519,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if hotel_id:
                 sql += " AND hotel_id=?"
                 args.append(hotel_id)
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
+            if scope_args:
+                sql += scope_sql
+                args += scope_args
             sql += " ORDER BY ym, hotel_id"
             c.execute(sql, args)
             rows = [dict(r) for r in c.fetchall()]
@@ -423,16 +591,18 @@ class ProxyHandler(BaseHTTPRequestHandler):
             month = params.get('month', ['2026-08'])[0]  # YYYY-MM
             conn = self._db()
             c = conn.cursor()
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
             # 旧日期没有快照时，保留原有收入流水统计作为回退值。
-            c.execute("""SELECT hotel_id, SUBSTR(create_time, 9, 2) AS day, COUNT(*) AS cnt
+            c.execute(f"""SELECT hotel_id, SUBSTR(create_time, 9, 2) AS day, COUNT(*) AS cnt
                          FROM income_flow WHERE create_time LIKE ? AND business_type_name != ''
                            AND business_type_name NOT LIKE '%消费%' AND business_type_name != '起步房价'
                            AND business_type_name != '超时房价'
-                         GROUP BY hotel_id, day""", (month + '%',))
+                         {scope_sql}
+                         GROUP BY hotel_id, day""", [month + '%'] + scope_args)
             merged = {(str(r['hotel_id']), str(r['day']).zfill(2)): int(r['cnt'] or 0) for r in c.fetchall()}
             # 快照是实际在住人数，覆盖同日期同校区的流水回退值。
-            c.execute("""SELECT hotel_id, SUBSTR(snap_date, 9, 2) AS day, resident_count
-                         FROM daily_residents WHERE snap_date LIKE ?""", (month + '%',))
+            c.execute(f"""SELECT hotel_id, SUBSTR(snap_date, 9, 2) AS day, resident_count
+                         FROM daily_residents WHERE snap_date LIKE ?{scope_sql}""", [month + '%'] + scope_args)
             snapshot_days = 0
             for r in c.fetchall():
                 merged[(str(r['hotel_id']), str(r['day']).zfill(2))] = int(r['resident_count'] or 0)
@@ -618,6 +788,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if item:
                 sql += " AND item=?"
                 args.append(item)
+            scope_names = self._campus_scope_names(self._session_user())
+            if scope_names:
+                ph = ",".join("?" * len(scope_names))
+                sql += f" AND campus IN ({ph})"
+                args += scope_names
             sql += " ORDER BY record_date DESC, id DESC LIMIT 500"
             c.execute(sql, args)
             rows = [dict(r) for r in c.fetchall()]
@@ -642,9 +817,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
                      FROM linen_inventory inv
                      LEFT JOIN linen_records r ON r.campus=inv.campus AND r.item=inv.item"""
             args = []
+            where_parts = []
             if campus:
-                sql += " WHERE inv.campus=?"
+                where_parts.append("inv.campus=?")
                 args.append(campus)
+            scope_names = self._campus_scope_names(self._session_user())
+            if scope_names:
+                ph = ",".join("?" * len(scope_names))
+                where_parts.append(f"inv.campus IN ({ph})")
+                args += scope_names
+            if where_parts:
+                sql += " WHERE " + " AND ".join(where_parts)
             sql += " GROUP BY inv.campus, inv.item ORDER BY inv.campus, inv.item"
             c.execute(sql, args)
             rows = []
@@ -676,6 +859,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if campus:
                 sql += " AND campus=?"
                 args.append(campus)
+            scope_names = self._campus_scope_names(self._session_user())
+            if scope_names:
+                ph = ",".join("?" * len(scope_names))
+                sql += f" AND campus IN ({ph})"
+                args += scope_names
             sql += " GROUP BY campus, item, op_type"
             c.execute(sql, args)
             rows = [dict(r) for r in c.fetchall()]
@@ -722,10 +910,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
             conn = self._db()
             c = conn.cursor()
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
             c.execute(f"""SELECT hotel_id, hotel_name, COUNT(*) AS cnt
                          FROM income_flow
-                         WHERE create_time LIKE ? AND {self.OCC_WHERE}
-                         GROUP BY hotel_id, hotel_name""", (date + '%',))
+                         WHERE create_time LIKE ? AND {self.OCC_WHERE}{scope_sql}
+                         GROUP BY hotel_id, hotel_name""", [date + '%'] + scope_args)
             rows = [dict(r) for r in c.fetchall()]
             conn.close()
             return self.send_json({"code": 200, "date": date, "records": rows})
@@ -744,12 +933,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
             conn = self._db()
             c = conn.cursor()
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
             if date:
-                c.execute("SELECT snap_date, hotel_id, hotel_name, resident_count, raw_json FROM daily_residents WHERE snap_date=? ORDER BY hotel_id", (date,))
+                c.execute(f"SELECT snap_date, hotel_id, hotel_name, resident_count, raw_json FROM daily_residents WHERE snap_date=?{scope_sql} ORDER BY hotel_id", [date] + scope_args)
             else:
-                c.execute("""SELECT snap_date, hotel_id, hotel_name, resident_count, raw_json FROM daily_residents
+                c.execute(f"""SELECT snap_date, hotel_id, hotel_name, resident_count, raw_json FROM daily_residents
                              WHERE snap_date = (SELECT MAX(snap_date) FROM daily_residents)
-                             ORDER BY hotel_id""")
+                             {scope_sql}
+                             ORDER BY hotel_id""", scope_args)
             rows = [dict(r) for r in c.fetchall()]
             conn.close()
 
@@ -801,6 +992,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if end:
                 sql += " AND create_time<=?"
                 args.append(end + " 23:59:59")
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
+            if scope_args:
+                sql += scope_sql
+                args += scope_args
             c.execute(sql, args)
             row = c.fetchone()
             conn.close()
@@ -831,6 +1026,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if hotel_id:
                 where += " AND hotel_id=?"
                 args.append(hotel_id)
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
+            if scope_args:
+                where += scope_sql
+                args += scope_args
 
             # 收入（全部流水金额）
             c.execute(f"SELECT COALESCE(SUM(real_money),0) AS income, COUNT(*) AS total FROM income_flow WHERE {where}", args)
@@ -890,6 +1089,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if end:
                 where += " AND create_time<=?"
                 args.append(end + " 23:59:59")
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
+            if scope_args:
+                where += scope_sql
+                args += scope_args
 
             # 总数
             c.execute(f"SELECT COUNT(*) FROM income_flow WHERE {where}", args)
@@ -1331,8 +1534,15 @@ class ProxyHandler(BaseHTTPRequestHandler):
         )""")
         c.execute("""CREATE TABLE IF NOT EXISTS battle_zones (
             hotel_id TEXT PRIMARY KEY,
-            floors TEXT
+            floors TEXT,
+            beds TEXT
         )""")
+        # 旧库补充 beds 列（床位级战斗区）
+        try:
+            c.execute("ALTER TABLE battle_zones ADD COLUMN beds TEXT")
+            conn.commit()
+        except Exception:
+            pass
         conn.commit()
         return conn
 
@@ -1355,6 +1565,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             if hotel_id:
                 sql += " AND hotel_id = ?"
                 args.append(hotel_id)
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
+            if scope_args:
+                sql += scope_sql
+                args += scope_args
             c.execute(sql, args)
             rows = [dict(r) for r in c.fetchall()]
             conn.close()
@@ -1385,8 +1599,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
             conn.close()
             return self.send_json({"code": 200, "msg": "保存成功"})
         except Exception as e:
+            try: conn.close()
+            except Exception: pass
             return self.send_json({"code": 500, "msg": str(e)}, 500)
-
     def battle_zones(self, query_string):
         """查询战斗区配置：?hotel_id=10145 或全部"""
         from urllib.parse import parse_qs
@@ -1397,10 +1612,16 @@ class ProxyHandler(BaseHTTPRequestHandler):
             conn = self._wake_db()
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
+            sql = "SELECT * FROM battle_zones WHERE 1=1"
+            args = []
             if hotel_id:
-                c.execute("SELECT * FROM battle_zones WHERE hotel_id=?", (hotel_id,))
-            else:
-                c.execute("SELECT * FROM battle_zones")
+                sql += " AND hotel_id=?"
+                args.append(hotel_id)
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "hotel_id")
+            if scope_args:
+                sql += scope_sql
+                args += scope_args
+            c.execute(sql, args)
             rows = [dict(r) for r in c.fetchall()]
             conn.close()
             return self.send_json({"code": 200, "data": rows})
@@ -1408,7 +1629,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return self.send_json({"code": 500, "msg": str(e)}, 500)
 
     def battle_zones_save(self):
-        """保存战斗区配置：{hotel_id, floors:[5,8]}"""
+        """保存战斗区配置：{hotel_id, floors:[5,8], beds:["RFJ..."]}"""
         import json as json_mod
         content_length = int(self.headers.get('Content-Length', 0))
         try:
@@ -1419,12 +1640,15 @@ class ProxyHandler(BaseHTTPRequestHandler):
             conn = self._wake_db()
             c = conn.cursor()
             c.execute("DELETE FROM battle_zones WHERE hotel_id=?", (d.get('hotel_id'),))
-            c.execute("INSERT INTO battle_zones (hotel_id, floors) VALUES (?,?)",
-                      (d.get('hotel_id'), json_mod.dumps(d.get('floors', []), ensure_ascii=False)))
+            c.execute("INSERT INTO battle_zones (hotel_id, floors, beds) VALUES (?,?,?)",
+                      (d.get('hotel_id'), json_mod.dumps(d.get('floors', []), ensure_ascii=False),
+                       json_mod.dumps(d.get('beds', []), ensure_ascii=False)))
             conn.commit()
             conn.close()
             return self.send_json({"code": 200, "msg": "保存成功"})
         except Exception as e:
+            try: conn.close()
+            except Exception: pass
             return self.send_json({"code": 500, "msg": str(e)}, 500)
 
     def board_export(self, query_string):
@@ -1686,6 +1910,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
             sum_query = f"SELECT COALESCE(SUM({sum_column}), 0) FROM {table} WHERE 1=1"
             
             params_list = []
+            # 校区范围过滤（资产表无campus字段，仅过滤收支表）
+            scope_sql, scope_args = self._campus_filter_sql(self._session_user(), "campus")
+            if scope_args and table in ("expenses", "income"):
+                query += scope_sql
+                count_query += scope_sql
+                sum_query += scope_sql
+                params_list += scope_args
             if company:
                 # 前端传的是校区名（B座/C座等），数据库用 campus 字段过滤
                 # 同时兼容 company 字段（公司简称），双条件匹配
@@ -1824,6 +2055,365 @@ class ProxyHandler(BaseHTTPRequestHandler):
         with open(TOKEN_PATH, "w") as f:
             f.write(token)
 
+    # ========== 账号权限系统 ==========
+
+    def _auth_conn(self):
+        conn = sqlite3.connect(AUTH_DB)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _read_json_body(self):
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b""
+        try:
+            return json.loads(raw.decode("utf-8")) if raw else {}
+        except Exception:
+            return {}
+
+    def _session_token(self):
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            return auth[7:].strip()
+        return (self.headers.get("X-Session-Token") or "").strip()
+
+    def _session_user(self):
+        """返回当前会话用户（dict）；未登录/过期/停用返回 None"""
+        token = self._session_token()
+        if not token:
+            return None
+        try:
+            conn = self._auth_conn()
+            row = conn.execute("""SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
+                                  WHERE s.token = ? AND s.expires_at > datetime('now','localtime')
+                                  AND u.enabled = 1""", (token,)).fetchone()
+            conn.close()
+            return dict(row) if row else None
+        except Exception:
+            return None
+
+    def _new_session(self, user_id):
+        token = secrets.token_urlsafe(32)
+        conn = self._auth_conn()
+        conn.execute("""INSERT INTO sessions (token, user_id, expires_at)
+                        VALUES (?, ?, datetime('now','localtime','+%d days'))""" % SESSION_DAYS,
+                     (token, user_id))
+        conn.commit()
+        conn.close()
+        return token
+
+    def _user_workspaces(self, user):
+        ids = json.loads(user.get("workspace_ids") or "[]")
+        if not ids:
+            return []
+        try:
+            conn = self._auth_conn()
+            q = ",".join("?" * len(ids))
+            rows = conn.execute(f"SELECT * FROM workspaces WHERE id IN ({q}) ORDER BY id", ids).fetchall()
+            conn.close()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+    def _user_permissions(self, user):
+        """返回用户权限：{modules:set, campuses:set}；管理员拥有全部模块、不限校区"""
+        if not user:
+            return {"modules": set(), "campuses": set()}
+        if user.get("is_admin"):
+            return {"modules": set(MODULES.keys()), "campuses": set()}
+        modules, campuses = set(), set()
+        for ws in self._user_workspaces(user):
+            for m in json.loads(ws.get("modules") or "[]"):
+                if m:
+                    modules.add(m)
+            for cid in json.loads(ws.get("campuses") or "[]"):
+                if cid:
+                    campuses.add(str(cid))
+        return {"modules": modules, "campuses": campuses}
+
+    def _campus_scope(self, user):
+        """返回受限校区ID列表（str）；空列表表示不限校区"""
+        if not user or user.get("is_admin"):
+            return []
+        return sorted(self._user_permissions(user)["campuses"])
+
+    def _campus_scope_names(self, user):
+        """返回受限校区的名称列表（布草等按校区名存储的表用）"""
+        return [HOTEL_IDS.get(cid, cid) for cid in self._campus_scope(user)]
+
+    def _campus_filter_sql(self, user, column="hotel_id"):
+        """按用户校区范围生成 SQL 过滤片段；不限时返回 ("", [])"""
+        scope = self._campus_scope(user)
+        if not scope:
+            return "", []
+        ph = ",".join("?" * len(scope))
+        return f" AND {column} IN ({ph})", list(scope)
+
+    def _check_api_access(self, path):
+        """模块权限校验。返回 (code, msg)；code 为 0 表示放行"""
+        user = self._session_user()
+        if not user:
+            return 401, "未登录，请先登录"
+        if user.get("is_admin"):
+            return 0, None
+        modules = self._user_permissions(user)["modules"]
+        for prefix, mods in API_MODULE_RULES:
+            if path.startswith(prefix):
+                if any(m in modules for m in mods):
+                    return 0, None
+                return 403, "当前账号无权限访问该模块"
+        return 0, None
+
+    def _require_admin(self):
+        user = self._session_user()
+        if not user:
+            return None, 401
+        if not user.get("is_admin"):
+            return None, 403
+        return user, 0
+
+    def auth_me(self):
+        user = self._session_user()
+        if not user:
+            return self.send_json({"code": 401, "msg": "未登录"}, 401)
+        perms = self._user_permissions(user)
+        ws_list = self._user_workspaces(user)
+        return self.send_json({
+            "code": 200,
+            "user": {"id": user["id"], "username": user["username"],
+                     "display_name": user["display_name"], "is_admin": user["is_admin"]},
+            "modules": sorted(perms["modules"]),
+            "campuses": sorted(perms["campuses"]),
+            "workspaces": [{"id": w["id"], "name": w["name"]} for w in ws_list],
+            "all_modules": MODULES,
+            "hotels": HOTEL_IDS,
+        })
+
+    def auth_login(self):
+        data = self._read_json_body()
+        username = (data.get("username") or "").strip()
+        password = data.get("password") or ""
+        if not username or not password:
+            return self.send_json({"code": 400, "msg": "缺少用户名或密码"}, 400)
+        try:
+            conn = self._auth_conn()
+            row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+            conn.close()
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": f"登录失败: {e}"}, 500)
+        if not row:
+            return self.send_json({"code": 400, "msg": "账号不存在"}, 400)
+        user = dict(row)
+        if not user["enabled"]:
+            return self.send_json({"code": 400, "msg": "账号已停用，请联系管理员"}, 400)
+        if _hash_password(password, user["salt"]) != user["password_hash"]:
+            return self.send_json({"code": 400, "msg": "密码错误"}, 400)
+        token = self._new_session(user["id"])
+        return self.send_json({
+            "code": 200, "msg": "登录成功", "session_token": token,
+            "user": {"id": user["id"], "username": user["username"],
+                     "display_name": user["display_name"], "is_admin": user["is_admin"]},
+        })
+
+    def auth_logout(self):
+        token = self._session_token()
+        if token:
+            try:
+                conn = self._auth_conn()
+                conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+        return self.send_json({"code": 200, "msg": "已退出登录"})
+
+    def auth_modules(self):
+        user = self._session_user()
+        if not user:
+            return self.send_json({"code": 401, "msg": "未登录"}, 401)
+        return self.send_json({"code": 200, "modules": MODULES, "hotels": HOTEL_IDS})
+
+    # ---- 工作区管理（仅管理员写操作） ----
+
+    def auth_workspaces_list(self):
+        user = self._session_user()
+        if not user:
+            return self.send_json({"code": 401, "msg": "未登录"}, 401)
+        try:
+            conn = self._auth_conn()
+            rows = conn.execute("SELECT * FROM workspaces ORDER BY id").fetchall()
+            conn.close()
+            return self.send_json({"code": 200, "workspaces": [dict(r) for r in rows]})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def auth_workspaces_create(self):
+        _, code = self._require_admin()
+        if code:
+            return self.send_json({"code": code, "msg": "无权限，仅管理员可操作"}, code)
+        data = self._read_json_body()
+        name = (data.get("name") or "").strip()
+        if not name:
+            return self.send_json({"code": 400, "msg": "工作区名称必填"}, 400)
+        modules = [m for m in (data.get("modules") or []) if m in MODULES]
+        campuses = [str(c) for c in (data.get("campuses") or []) if c]
+        try:
+            conn = self._auth_conn()
+            cur = conn.execute("INSERT INTO workspaces (name, modules, campuses, remark) VALUES (?,?,?,?)",
+                               (name, json.dumps(modules, ensure_ascii=False),
+                                json.dumps(campuses, ensure_ascii=False), data.get("remark", "")))
+            conn.commit()
+            new_id = cur.lastrowid
+            conn.close()
+            return self.send_json({"code": 200, "msg": "已创建", "id": new_id})
+        except sqlite3.IntegrityError:
+            return self.send_json({"code": 400, "msg": "工作区名称已存在"}, 400)
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def auth_workspaces_update(self, ws_id):
+        _, code = self._require_admin()
+        if code:
+            return self.send_json({"code": code, "msg": "无权限，仅管理员可操作"}, code)
+        data = self._read_json_body()
+        name = (data.get("name") or "").strip()
+        if not name:
+            return self.send_json({"code": 400, "msg": "工作区名称必填"}, 400)
+        modules = [m for m in (data.get("modules") or []) if m in MODULES]
+        campuses = [str(c) for c in (data.get("campuses") or []) if c]
+        try:
+            conn = self._auth_conn()
+            dup = conn.execute("SELECT id FROM workspaces WHERE name = ? AND id != ?", (name, ws_id)).fetchone()
+            if dup:
+                conn.close()
+                return self.send_json({"code": 400, "msg": "工作区名称已存在"}, 400)
+            conn.execute("UPDATE workspaces SET name=?, modules=?, campuses=?, remark=? WHERE id=?",
+                         (name, json.dumps(modules, ensure_ascii=False),
+                          json.dumps(campuses, ensure_ascii=False), data.get("remark", ""), ws_id))
+            conn.commit()
+            conn.close()
+            return self.send_json({"code": 200, "msg": "已保存"})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def auth_workspaces_delete(self, ws_id):
+        _, code = self._require_admin()
+        if code:
+            return self.send_json({"code": code, "msg": "无权限，仅管理员可操作"}, code)
+        try:
+            conn = self._auth_conn()
+            conn.execute("DELETE FROM workspaces WHERE id = ?", (ws_id,))
+            # 同步从所有账号的工作区列表中移除
+            for u in conn.execute("SELECT id, workspace_ids FROM users").fetchall():
+                ids = [i for i in json.loads(u["workspace_ids"] or "[]") if int(i) != int(ws_id)]
+                conn.execute("UPDATE users SET workspace_ids=? WHERE id=?", (json.dumps(ids), u["id"]))
+            conn.commit()
+            conn.close()
+            return self.send_json({"code": 200, "msg": "已删除"})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    # ---- 账号管理（仅管理员） ----
+
+    def auth_users_list(self):
+        _, code = self._require_admin()
+        if code:
+            return self.send_json({"code": code, "msg": "无权限，仅管理员可操作"}, code)
+        try:
+            conn = self._auth_conn()
+            rows = conn.execute("SELECT * FROM users ORDER BY id").fetchall()
+            conn.close()
+            users = []
+            for r in rows:
+                d = dict(r)
+                d.pop("password_hash", None)
+                d.pop("salt", None)
+                users.append(d)
+            return self.send_json({"code": 200, "users": users})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def auth_users_create(self):
+        _, code = self._require_admin()
+        if code:
+            return self.send_json({"code": code, "msg": "无权限，仅管理员可操作"}, code)
+        data = self._read_json_body()
+        username = (data.get("username") or "").strip()
+        password = data.get("password") or ""
+        if not username or not password:
+            return self.send_json({"code": 400, "msg": "用户名和密码必填"}, 400)
+        if len(password) < 4:
+            return self.send_json({"code": 400, "msg": "密码至少4位"}, 400)
+        salt = secrets.token_hex(16)
+        try:
+            conn = self._auth_conn()
+            cur = conn.execute("""INSERT INTO users (username, password_hash, salt, display_name, workspace_ids, is_admin, enabled)
+                                  VALUES (?,?,?,?,?,?,?)""",
+                               (username, _hash_password(password, salt), salt,
+                                data.get("display_name", ""),
+                                json.dumps([int(i) for i in (data.get("workspace_ids") or []) if i]),
+                                1 if data.get("is_admin") else 0,
+                                1 if data.get("enabled", True) else 0))
+            conn.commit()
+            new_id = cur.lastrowid
+            conn.close()
+            return self.send_json({"code": 200, "msg": "已创建", "id": new_id})
+        except sqlite3.IntegrityError:
+            return self.send_json({"code": 400, "msg": "用户名已存在"}, 400)
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def auth_users_update(self, uid):
+        _, code = self._require_admin()
+        if code:
+            return self.send_json({"code": code, "msg": "无权限，仅管理员可操作"}, code)
+        data = self._read_json_body()
+        try:
+            conn = self._auth_conn()
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+            if not row:
+                conn.close()
+                return self.send_json({"code": 400, "msg": "账号不存在"}, 400)
+            user = dict(row)
+            username = (data.get("username") or user["username"]).strip()
+            dup = conn.execute("SELECT id FROM users WHERE username = ? AND id != ?", (username, uid)).fetchone()
+            if dup:
+                conn.close()
+                return self.send_json({"code": 400, "msg": "用户名已存在"}, 400)
+            conn.execute("UPDATE users SET username=?, display_name=?, workspace_ids=?, is_admin=?, enabled=? WHERE id=?",
+                         (username, data.get("display_name", user["display_name"]),
+                          json.dumps([int(i) for i in (data.get("workspace_ids") if data.get("workspace_ids") is not None else json.loads(user["workspace_ids"] or "[]")) if i]),
+                          1 if data.get("is_admin", user["is_admin"]) else 0,
+                          1 if data.get("enabled", user["enabled"]) else 0,
+                          uid))
+            password = data.get("password")
+            if password:
+                if len(password) < 4:
+                    conn.close()
+                    return self.send_json({"code": 400, "msg": "密码至少4位"}, 400)
+                salt = secrets.token_hex(16)
+                conn.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?",
+                             (_hash_password(password, salt), salt, uid))
+                conn.execute("DELETE FROM sessions WHERE user_id = ?", (uid,))
+            conn.commit()
+            conn.close()
+            return self.send_json({"code": 200, "msg": "已保存"})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
+    def auth_users_delete(self, uid):
+        _, code = self._require_admin()
+        if code:
+            return self.send_json({"code": code, "msg": "无权限，仅管理员可操作"}, code)
+        try:
+            conn = self._auth_conn()
+            conn.execute("DELETE FROM users WHERE id = ?", (uid,))
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (uid,))
+            conn.commit()
+            conn.close()
+            return self.send_json({"code": 200, "msg": "已删除"})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
+
     def handle_login(self, data):
         """处理账号密码登录"""
         username = data.get("username")
@@ -1858,11 +2448,25 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 result = json.loads(resp.read().decode())
                 if result.get("token"):
                     self.save_token(result["token"])
-                    self.send_json({"code": 200, "msg": "登录成功"})
+                    # AMS 登录成功视为系统管理员，自动建立本地会话
+                    session_token = self._admin_session()
+                    self.send_json({"code": 200, "msg": "登录成功", "session_token": session_token})
                 else:
                     self.send_json({"code": 400, "msg": result.get("msg", "登录失败")}, 400)
         except Exception as e:
             self.send_json({"code": 500, "msg": f"登录失败: {str(e)}"}, 500)
+
+    def _admin_session(self):
+        """为管理员账号建立/复用会话（AMS登录或扫码登录成功后调用）"""
+        try:
+            conn = self._auth_conn()
+            row = conn.execute("SELECT id FROM users WHERE is_admin=1 AND enabled=1 ORDER BY id LIMIT 1").fetchone()
+            conn.close()
+            if row:
+                return self._new_session(row["id"])
+        except Exception:
+            pass
+        return None
 
     def proxy_api(self, api_path):
         token = self.get_token()
@@ -1942,6 +2546,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 result = json.loads(resp.read().decode())
                 if result.get("token"):
                     self.save_token(result["token"])
+                    # 扫码登录成功视为系统管理员
+                    result["session_token"] = self._admin_session()
                 self.send_json(result)
         except Exception as e:
             self.send_json({"code": 500, "msg": str(e)}, 500)
@@ -2243,6 +2849,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             return self.send_json({"code": 500, "msg": f"导出失败: {str(e)}"}, 500)
 
 if __name__ == "__main__":
+    init_auth_db()
     print(f"AMS代理服务器启动在端口 {PORT}")
     print(f"访问 http://localhost:{PORT} 或 http://192.168.31.179:{PORT}")
     server = ThreadedHTTPServer(("0.0.0.0", PORT), ProxyHandler)

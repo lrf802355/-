@@ -55,7 +55,7 @@
   </div>
 
   <div id="msg"></div>
-  <div class="link">首次使用请用管理员账号登录，或用微信扫码</div>
+  <div class="link">首次使用请用管理员账号 admin 登录（初始密码见 cache/初始管理员密码.txt），或用微信扫码进入</div>
 </div>
 
 <script>
@@ -108,7 +108,10 @@ function checkQr() {
       st.textContent = '确认成功，正在登录...';
       clearInterval(qrTimer);
       fetch('/qr-auth/' + encodeURIComponent(qrUuid)).then(function(r) { return r.json(); }).then(function(a) {
-        if (a.token || a.code === 200) {
+        if (a.session_token) {
+          localStorage.setItem('ams_session', a.session_token);
+          window.location.href = '/';
+        } else if (a.token || a.code === 200) {
           window.location.href = '/';
         } else {
           showMsg('登录失败: ' + (a.msg || '未知错误'));
@@ -124,16 +127,17 @@ function doPwdLogin() {
   var p = document.getElementById('loginPass').value.trim();
   if (!u || !p) { showMsg('请填写账号和密码'); return; }
   var body = { username: u, password: p };
-  fetch('/api/login', {
+  fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.code === 200) {
+      if (d.session_token) localStorage.setItem('ams_session', d.session_token);
       showMsg('登录成功，正在进入系统...', true);
       setTimeout(function() { window.location.href = '/'; }, 600);
     } else {
-      showMsg('登录失败: ' + (d.msg || '未知错误'));
+      showMsg(d.msg || '登录失败');
     }
   }).catch(function() { showMsg('登录失败，请重试'); });
 }

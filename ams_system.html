@@ -301,6 +301,42 @@
 
         .update-time { color: var(--text-faint); font-size: 0.8rem; margin-bottom: var(--space-3); }
         .loading { text-align: center; padding: var(--space-6); color: var(--text-faint); font-size: 0.85rem; }
+        .topbar-user { color: var(--text-secondary); font-size: 0.82rem; margin-right: 10px; white-space: nowrap; }
+        .btn-logout { min-height: 32px; padding: 5px 14px; font-size: 0.78rem; }
+        .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+        .chip {
+            display: inline-block; padding: 4px 10px; border-radius: 999px;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+            color: var(--text-secondary); font-size: 0.78rem; cursor: pointer; user-select: none;
+        }
+        .chip.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+        .chip.off { opacity: 0.45; }
+        .admin-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
+        .admin-tab {
+            padding: 8px 18px; border-radius: var(--radius-md); cursor: pointer;
+            background: rgba(255,255,255,0.06); color: var(--text-secondary);
+            border: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem;
+        }
+        .admin-tab.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); font-weight: 600; }
+        .admin-form { display: grid; gap: 10px; margin-bottom: 14px; padding: 14px;
+            border: 1px solid rgba(255,255,255,0.12); border-radius: var(--radius-lg); background: rgba(255,255,255,0.04); }
+        .admin-form label { font-size: 0.78rem; color: var(--text-faint); display: block; margin-bottom: 4px; }
+        .admin-form input[type=text], .admin-form input[type=password] {
+            width: 100%; padding: 8px 10px; border-radius: var(--radius-md);
+            border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06);
+            color: var(--text-primary); font-size: 0.85rem; font-family: inherit;
+        }
+        .admin-form input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+        .admin-form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .admin-form-row > div { flex: 1 1 220px; }
+        .admin-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+        .ws-card { border: 1px solid rgba(255,255,255,0.12); border-radius: var(--radius-lg);
+            padding: 14px; margin-bottom: 12px; background: rgba(255,255,255,0.04); }
+        .ws-card h3 { margin: 0 0 4px; font-size: 1rem; color: var(--text-primary); }
+        .ws-card .ws-remark { color: var(--text-faint); font-size: 0.78rem; margin-bottom: 8px; }
+        .small-btn { min-height: 30px; padding: 4px 12px; font-size: 0.78rem; }
+        .danger-btn { border-color: rgba(229,72,77,0.5); color: #ef6b70; }
+        .danger-btn:hover { background: rgba(229,72,77,0.12); }
         /* 包住对比汇总卡片（复用stat-card风格）*/
         .board-card { background: #ffffff; border: 1px solid #334155; border-radius: 12px; padding: 14px; text-align: center; }
         .board-card-label { font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
@@ -584,21 +620,22 @@
             </div>
         </div>
         <div class="nav-group">📊 数据</div>
-        <div class="nav-item active" onclick="showPage('summary', event)"><span class="nav-icon">📊</span>数据汇总</div>
-        <div class="nav-item" onclick="showPage('info', event)"><span class="nav-icon">🏢</span>基本信息</div>
+        <div class="nav-item active" data-module="summary" onclick="showPage('summary', event)"><span class="nav-icon">📊</span>数据汇总</div>
+        <div class="nav-item" data-module="info" onclick="showPage('info', event)"><span class="nav-icon">🏢</span>基本信息</div>
         <div class="nav-group">📋 管理</div>
-        <div class="nav-item" onclick="showPage('weekly', event)"><span class="nav-icon">📈</span>周效比</div>
-        <div class="nav-item" onclick="showPage('staff', event)"><span class="nav-icon">👥</span>花名册</div>
-        <div class="nav-item" onclick="showPage('residents', event)"><span class="nav-icon">🏠</span>在住名单</div>
-        <div class="nav-item" onclick="showPage('rooms', event)"><span class="nav-icon">🚪</span>楼栋房间</div>
+        <div class="nav-item" data-module="weekly" onclick="showPage('weekly', event)"><span class="nav-icon">📈</span>周效比</div>
+        <div class="nav-item" data-module="staff" onclick="showPage('staff', event)"><span class="nav-icon">👥</span>花名册</div>
+        <div class="nav-item" data-module="residents" onclick="showPage('residents', event)"><span class="nav-icon">🏠</span>在住名单</div>
+        <div class="nav-item" data-module="rooms" onclick="showPage('rooms', event)"><span class="nav-icon">🚪</span>楼栋房间</div>
         <div class="nav-group">💰 报表</div>
-        <div class="nav-item" onclick="showPage('income', event)"><span class="nav-icon">💵</span>收入报表</div>
-        <div class="nav-item" onclick="showPage('finance', event)"><span class="nav-icon">💹</span>财务数据</div>
-        <div class="nav-item" onclick="showPage('payroll', event)"><span class="nav-icon">💰</span>工资表</div>
-        <div class="nav-item" onclick="showPage('linen', event)"><span class="nav-icon">🧺</span>布草管理</div>
-        <div class="nav-item" onclick="showPage('board', event)"><span class="nav-icon">🛏️</span>包住对比</div>
-        <div class="nav-item" onclick="showPage('test', event)"><span class="nav-icon">🗺️</span>校区地图</div>
-        <div class="nav-item" onclick="showPage('bedmanage', event)"><span class="nav-icon">🛏️</span>床位管理</div>
+        <div class="nav-item" data-module="income" onclick="showPage('income', event)"><span class="nav-icon">💵</span>收入报表</div>
+        <div class="nav-item" data-module="finance" onclick="showPage('finance', event)"><span class="nav-icon">💹</span>财务数据</div>
+        <div class="nav-item" data-module="payroll" onclick="showPage('payroll', event)"><span class="nav-icon">💰</span>工资表</div>
+        <div class="nav-item" data-module="linen" onclick="showPage('linen', event)"><span class="nav-icon">🧺</span>布草管理</div>
+        <div class="nav-item" data-module="board" onclick="showPage('board', event)"><span class="nav-icon">🛏️</span>包住对比</div>
+        <div class="nav-item" data-module="test" onclick="showPage('test', event)"><span class="nav-icon">🗺️</span>校区地图</div>
+        <div class="nav-item" data-module="bedmanage" onclick="showPage('bedmanage', event)"><span class="nav-icon">🛏️</span>床位管理</div>
+        <div class="nav-item" data-admin="1" style="display:none" onclick="showPage('admin', event)"><span class="nav-icon">🔐</span>权限管理</div>
         <div class="sidebar-footer"><strong>工作台 v2.0</strong>数据每 5 分钟自动缓存</div>
     </div>
 
@@ -614,6 +651,8 @@
             <div class="topbar-right">
                 <span class="service-pill"><span class="service-dot"></span>本地服务正常</span>
                 <span class="topbar-time" id="topbarTime">-</span>
+                <span class="topbar-user" id="topbarUser"></span>
+                <button class="btn btn-logout" onclick="doLogout()">退出</button>
             </div>
         </div>
         <div id="summary-page" class="page active">
@@ -1222,18 +1261,51 @@
                     <thead>
                         <tr>
                             <th>楼栋</th><th>楼层</th><th>房间</th><th>床位</th><th>性别</th><th>学员</th>
-                            <th>床位状态</th><th>叫醒结果</th><th>操作</th>
+                            <th>床位状态</th><th>战斗区</th><th>叫醒结果</th><th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="bmBody"></tbody>
                 </table>
             </div>
         </div>
+
+        <!-- 权限管理页（仅管理员可见） -->
+        <div id="admin-page" class="page">
+            <h1>🔐 权限管理</h1>
+            <div class="page-sub">按工作区配置模块权限与校区范围，为账号分配工作区</div>
+            <div class="admin-tabs">
+                <div class="admin-tab active" id="adminTabWs" onclick="switchAdminTab(1)">工作区</div>
+                <div class="admin-tab" id="adminTabUs" onclick="switchAdminTab(2)">账号</div>
+            </div>
+
+            <div id="adminWsPanel">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                    <span style="color:#86909c;font-size:0.82rem">工作区决定账号能看到哪些模块、哪些校区的数据</span>
+                    <button class="btn btn-primary" onclick="showWsForm()">＋ 新建工作区</button>
+                </div>
+                <div id="adminWsList"></div>
+                <div id="adminWsForm"></div>
+            </div>
+
+            <div id="adminUserPanel" style="display:none">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                    <span style="color:#86909c;font-size:0.82rem">账号登录工作台，权限 = 所属工作区的并集</span>
+                    <button class="btn btn-primary" onclick="showUserForm()">＋ 新建账号</button>
+                </div>
+                <div style="background:#fff;border:1px solid #e5e6eb;border-radius:12px;padding:12px;overflow-x:auto">
+                    <table>
+                        <thead><tr><th>账号</th><th>姓名</th><th>所属工作区</th><th>管理员</th><th>状态</th><th>操作</th></tr></thead>
+                        <tbody id="adminUserBody"></tbody>
+                    </table>
+                </div>
+                <div id="adminUserForm"></div>
+            </div>
+        </div>
     </div>
 
     <script src="/echarts.min.js"></script>
     <script>
-        const HOTELS = [
+        let HOTELS = [
             {id:"10144", name:"上岸公寓B座", start:"2022年4月"},
             {id:"10137", name:"上岸公寓C座", start:"2023年5月"},
             {id:"10143", name:"上岸公寓D座", start:"2026年2月"},
@@ -1337,6 +1409,11 @@
             if (time && !time.textContent.trim()) time.textContent = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
         }
         function showPage(p, ev) {
+            if (currentModules.length && currentModules.indexOf(p) < 0 && p !== 'admin') {
+                if (ev && ev.currentTarget) ev.currentTarget.classList.remove('active');
+                alert('当前账号无权限访问该模块');
+                return;
+            }
             updateTopbar(p);
             document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
@@ -1362,10 +1439,11 @@
             if (p === 'board') fetchBoard();
             if (p === 'test') { setTimeout(initDrillMap, 300); }
             if (p === 'bedmanage') initBedManage();
+            if (p === 'admin') initAdminPage();
         }
 
         function getPageName(p) {
-            var names = {summary:'数据汇总',info:'基本信息',weekly:'周效比',staff:'花名册',residents:'在住名单',rooms:'楼栋房间',income:'收入报表',finance:'财务数据',payroll:'工资表',linen:'布草管理',board:'包住对比'};
+            var names = {summary:'数据汇总',info:'基本信息',weekly:'周效比',staff:'花名册',residents:'在住名单',rooms:'楼栋房间',income:'收入报表',finance:'财务数据',payroll:'工资表',linen:'布草管理',board:'包住对比',admin:'权限管理'};
             return names[p] || p;
         }
 
@@ -2623,15 +2701,25 @@
             }
         }
 
-        // 检查登录状态
+        // ===== 账号权限 =====
+        let currentUser = null;      // 当前登录用户
+        let currentModules = [];     // 当前账号可见模块
+
+        function authHeaders() {
+            var tok = localStorage.getItem('ams_session');
+            return tok ? { 'Authorization': 'Bearer ' + tok } : {};
+        }
+
+        // 检查登录状态并按账号权限初始化界面
         async function checkLogin() {
             try {
-                const r = await fetch('/api/status');
+                const r = await fetch('/api/auth/me', { headers: authHeaders() });
                 const d = await r.json();
-                if (!d.logged_in) {
+                if (d.code !== 200) {
                     window.location.href = '/ams_login.html';
                     return;
                 }
+                applyUserPermissions(d);
                 document.querySelectorAll('.nav-item')[1].click();
             } catch(e) {
                 // 网络异常时不跳转，默认进入系统（数据加载时会提示）
@@ -2639,12 +2727,43 @@
             }
         }
 
-        // 全局401拦截：任何API返回401/未登录，自动跳转扫码页
+        // 按账号权限：过滤校区、隐藏无权限模块、显示管理员入口
+        function applyUserPermissions(me) {
+            currentUser = me.user || null;
+            currentModules = me.modules || [];
+            var allowed = me.campuses || [];
+            if (allowed.length) {
+                HOTELS = HOTELS.filter(function(h) { return allowed.indexOf(h.id) >= 0; });
+            }
+            var tu = document.getElementById('topbarUser');
+            if (tu && currentUser) {
+                tu.textContent = (currentUser.display_name || currentUser.username) + (currentUser.is_admin ? '（管理员）' : '');
+            }
+            document.querySelectorAll('.nav-item[data-module]').forEach(function(el) {
+                var mod = el.getAttribute('data-module');
+                el.style.display = (currentModules.indexOf(mod) >= 0) ? '' : 'none';
+            });
+            var adminNav = document.querySelector('.nav-item[data-admin]');
+            if (adminNav) adminNav.style.display = (currentUser && currentUser.is_admin) ? '' : 'none';
+        }
+
+        // 退出登录
+        async function doLogout() {
+            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch(e) {}
+            localStorage.removeItem('ams_session');
+            window.location.href = '/ams_login.html';
+        }
+
+        // 全局拦截：自动带上会话令牌；401未登录跳转登录页
         (function() {
             var _fetch = window.fetch;
             window.fetch = function(url, opts) {
+                opts = opts || {};
+                opts.headers = opts.headers || {};
+                var tok = localStorage.getItem('ams_session');
+                if (tok) opts.headers['Authorization'] = 'Bearer ' + tok;
                 return _fetch(url, opts).then(function(resp) {
-                    if (resp.status === 401 || resp.status === 403) {
+                    if (resp.status === 401) {
                         var cur = window.location.pathname;
                         if (cur.indexOf('ams_login.html') < 0) {
                             window.location.href = '/ams_login.html';
@@ -3413,7 +3532,7 @@
 
         // ========== 床位管理（AMS只读 + 叫醒登记）==========
         let bmCache = {};  // hotelId -> {bldgName, floorName, rooms[]}
-        let bmZones = {};  // hotelId -> [floors]
+        let bmZones = {};  // hotelId -> {floors:[], beds:[]}
         let bmRecords = {};  // date_hotelId -> {roomCode_bedName: status}
 
         async function initBedManage() {
@@ -3428,7 +3547,7 @@
             try {
                 const r = await fetch('/api/battle/zones');
                 const d = await r.json();
-                (d.data || []).forEach(z => { bmZones[z.hotel_id] = JSON.parse(z.floors || '[]'); });
+                (d.data || []).forEach(z => { bmZones[z.hotel_id] = {floors: JSON.parse(z.floors || '[]'), beds: JSON.parse(z.beds || '[]')}; });
             } catch(e) {}
             loadBedManage();
         }
@@ -3439,118 +3558,143 @@
             const body = document.getElementById('bmBody');
             const count = document.getElementById('bmCount');
             const stats = document.getElementById('bmStats');
-            if (!hotelId) { body.innerHTML = '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">请选择校区</td></tr>'; return; }
-            body.innerHTML = '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">加载中...</td></tr>';
+            if (!hotelId) { body.innerHTML = '<tr><td colspan="10" style="color:#86909c;text-align:center;padding:30px">请选择校区</td></tr>'; return; }
+            body.innerHTML = '<tr><td colspan="10" style="color:#86909c;text-align:center;padding:30px">加载中...</td></tr>';
 
             try {
-                // 1. 拉AMS床位树
-                if (!bmCache[hotelId]) {
-                    const res = await fetch('/api/hotel/web/basics/treeLazyLoading?hotelId=' + hotelId);
-                    const d = await res.json();
-                    bmCache[hotelId] = d.data;
-                }
-                const tree = bmCache[hotelId];
-                const floors = [];
-                const walk = node => {
-                    if (node.nodeType === '2') floors.push({name: node.nodeName, rooms: (node.children||[]).filter(r => r.nodeType==='3' || r.roomId)});
-                    (node.children || []).forEach(walk);
-                };
-                walk(tree);
-                // 1.5 拉在住名单（pageSize=2000 拿全量），用于显示学员姓名
-                let resExact = {}, resNorm = {}, resNum = {};
+                // 1. 拉AMS全量床位（room/list 每张床一条记录，自带楼栋/楼层/状态）
+                const res = await fetch('/api/hotel/web/basics/room/list/' + hotelId);
+                const d = await res.json();
+                const beds = (d.data || []).filter(r => /-\d+$/.test(r.roomName || '')).map(r => {
+                    const rn = r.roomName;
+                    const idx = rn.lastIndexOf('-');
+                    return {
+                        build: r.roomBuildName || '', floor: r.roomFloorName || '',
+                        room: rn.slice(0, idx), bedNo: rn.slice(idx + 1),
+                        roomCode: r.roomCode || '', roomName: rn, status: r.roomStateCode || ''
+                    };
+                });
+                // 排序：楼栋 → 楼层号 → 房号 → 床位号
+                const floorNum = f => { const m = (f || '').match(/(\d+)/); return m ? parseInt(m[1]) : 999; };
+                const roomNum = r => { const m = (r || '').match(/(\d+)/); return m ? parseInt(m[1]) : 99999; };
+                beds.sort((a, b) => a.build.localeCompare(b.build) || floorNum(a.floor) - floorNum(b.floor) ||
+                    roomNum(a.room) - roomNum(b.room) || (parseInt(a.bedNo) || 0) - (parseInt(b.bedNo) || 0));
+
+                // 2. 拉在住名单（pageSize=2000 拿全量），按床位名精确匹配
+                let occExact = {}, occNorm = {}, occNum = {};
                 try {
                     const r = await fetch('/api/hotel/web/business/checkOrder/listAcc/' + hotelId + '?pageSize=2000');
-                    const d = await r.json();
-                    (d.rows || []).forEach(p => {
+                    const dd = await r.json();
+                    (dd.rows || []).forEach(p => {
                         const rn = p.roomName || '';
-                        const nm = normRoomName(rn);
                         const person = {name: p.name || '', gsex: p.gsex};
-                        if (rn) { (resExact[rn] = resExact[rn] || []).push(person); }
-                        if (nm) { (resNorm[nm] = resNorm[nm] || []).push(person); }
+                        if (rn) { (occExact[rn] = occExact[rn] || []).push(person); }
+                        const nm = normRoomName(rn);
+                        if (nm) { (occNorm[nm] = occNorm[nm] || []).push(person); }
                         const m = rn.match(/(\d{2,4})(?:-\d+)?$/);
-                        if (m) { (resNum[m[1]] = resNum[m[1]] || []).push(person); }
+                        if (m) { (occNum[m[1]] = occNum[m[1]] || []).push(person); }
                     });
                 } catch(e) {}
-                // 展平所有床位
-                const beds = [];
-                floors.forEach(f => {
-                    f.rooms.forEach(r => {
-                        const rn = r.roomName || '';
-                        const isBed = rn.includes('-');
-                        // 匹配在住学员：精确床位 > 归一化房间 > 纯房号兜底（塔利北）
-                        let occs = [];
-                        if (isBed) occs = resExact[rn] || [];
-                        if (!occs.length) occs = resNorm[normRoomName(rn)] || [];
-                        if (!occs.length) {
-                            const m = rn.match(/(\d{2,4})$/);
-                            if (m) occs = resNum[m[1]] || [];
-                        }
-                        const student = occs.map(o => o.name).join('、');
-                        let gender = (f.name || '').includes('男') ? '男' : (f.name || '').includes('女') ? '女' : '';
-                        if (!gender && occs[0]) gender = occs[0].gsex === '2' ? '女' : occs[0].gsex === '1' ? '男' : '';
-                        beds.push({
-                            floor: f.name, room: rn, roomCode: r.roomCode || '',
-                            bed: isBed ? rn.split('-').pop() : '', student: student,
-                            status: r.roomStateCode || '', gender: gender, isBed: isBed, roomId: r.roomId
-                        });
-                    });
-                });
 
-                // 2. 拉叫醒记录
+                // 3. 拉叫醒记录（按床位：room_code + bed_no 唯一）
                 let recMap = {};
                 try {
                     const r = await fetch('/api/wake/records?date=' + date + '&hotel_id=' + hotelId);
-                    const d = await r.json();
-                    (d.data || []).forEach(rec => {
+                    const dd = await r.json();
+                    (dd.data || []).forEach(rec => {
                         recMap[rec.room_code + '_' + rec.bed_name] = rec.wake_status;
                     });
                 } catch(e) {}
 
-                // 3. 渲染
-                const zones = bmZones[hotelId] || [];
-                const stateMap = {VC:'空净床', VD:'脏房', OC:'在住', MF:'维修房', KF:'空房', ZR:'钟点房'};
-                const stateColor = {VC:'#00b42a', VD:'#f53f3f', OC:'#2684ff', MF:'#94a3b8', KF:'#86909c', ZR:'#f59d23'};
-                const isBattle = f => zones.includes(parseInt(f));
+                // 4. 渲染（每行一个床位）
+                const zone = bmZones[hotelId] || {floors: [], beds: []};
+                const stateMap = {VC:'空闲床', VD:'脏床', OC:'在住'};
+                const stateColor = {VC:'#00b42a', VD:'#f53f3f', OC:'#2684ff'};
+                const isBattle = b => zone.floors.includes(floorNum(b.floor)) || zone.beds.includes(b.roomCode);
                 const wakeBtns = ['应答','未应答','请假','无课'].map(s =>
                     '<button class="btn wake-btn" style="padding:4px 10px;font-size:0.75rem;min-height:30px;margin:2px;background:#f2f3f5;border:1px solid #e5e6eb;color:#4e5969" onclick="saveWake(\'' + s + '\',\'' + hotelId + '\',\'' + date + '\',this)">' + s + '</button>'
                 ).join('');
 
                 let html = '';
-                beds.forEach((b, i) => {
-                    const battle = isBattle(b.floor);
-                    const wakeKey = b.roomCode + '_' + (b.bed || b.room);
+                beds.forEach(b => {
+                    // 匹配在住学员：精确床位名 > 归一化房名 > 纯房号兜底（仅限在住床位，避免空闲床显示室友）
+                    let occs = occExact[b.roomName] || [];
+                    if (!occs.length && b.status === 'OC') occs = occNorm[normRoomName(b.roomName)] || [];
+                    if (!occs.length && b.status === 'OC') {
+                        const m = b.roomName.match(/(\d{2,4})(?:-\d+)?$/);
+                        if (m) occs = occNum[m[1]] || [];
+                    }
+                    const student = occs.map(o => o.name).join('、');
+                    let gender = (b.floor || '').includes('男') ? '男' : (b.floor || '').includes('女') ? '女' : '';
+                    if (!gender && occs[0]) gender = occs[0].gsex === '2' ? '女' : occs[0].gsex === '1' ? '男' : '';
+                    const battle = isBattle(b);
+                    const wakeKey = b.roomCode + '_' + b.bedNo;
                     const wk = recMap[wakeKey] || '';
-                    const isOccupied = b.status === 'OC' || b.status === 'ZR';
-                    html += '<tr style="' + (battle ? 'background:#fff7e6' : '') + '" data-rc="' + (b.roomCode||'') + '" data-bed="' + (b.bed||'') + '" data-room="' + (b.room||'') + '" data-stu="' + (b.student||'') + '" data-gen="' + (b.gender||'') + '">' +
-                        '<td>' + (battle ? '⚡' : '') + '</td>' +
+                    const isOccupied = b.status === 'OC';
+                    const checked = zone.beds.includes(b.roomCode);
+                    html += '<tr style="' + (battle ? 'background:#fff7e6' : '') + '" data-rc="' + b.roomCode + '" data-bed="' + b.bedNo + '" data-room="' + b.room + '" data-stu="' + student + '" data-gen="' + gender + '">' +
+                        '<td>' + b.build + '</td>' +
                         '<td>' + b.floor + '</td>' +
                         '<td>' + b.room + '</td>' +
-                        '<td>' + (b.bed || '-') + '</td>' +
-                        '<td>' + (b.gender || '-') + '</td>' +
-                        '<td>' + (b.student || '-') + '</td>' +
+                        '<td>' + b.bedNo + '</td>' +
+                        '<td>' + (gender || '-') + '</td>' +
+                        '<td>' + (student || '-') + '</td>' +
                         '<td style="color:' + (stateColor[b.status] || '#86909c') + ';font-size:0.75rem">' + (stateMap[b.status] || b.status || '-') + '</td>' +
+                        '<td style="text-align:center"><input type="checkbox" class="bm-battle-check" ' + (checked ? 'checked' : '') + ' onchange="toggleBedBattle(this,\'' + hotelId + '\')"></td>' +
                         '<td>' + (wk ? '<span style="color:#3370ff;font-weight:600">' + wk + '</span>' : '<span style="color:#c0c4cc">未登记</span>') + '</td>' +
                         '<td>' + (isOccupied ? wakeBtns : '<span style="color:#c0c4cc;font-size:0.75rem">非在住</span>') + '</td>' +
                         '</tr>';
                 });
-                body.innerHTML = html || '<tr><td colspan="9" style="color:#86909c;text-align:center;padding:30px">无床位数据</td></tr>';
+                body.innerHTML = html || '<tr><td colspan="10" style="color:#86909c;text-align:center;padding:30px">无床位数据</td></tr>';
                 count.textContent = '共 ' + beds.length + ' 个床位';
 
-                // 4. 统计
-                const stat = {total: beds.length, occupied: beds.filter(b=>b.status==='OC'||b.status==='ZR').length, wake_ok: Object.values(recMap).filter(s=>s==='应答').length, wake_no: Object.values(recMap).filter(s=>s==='未应答').length, wake_leave: Object.values(recMap).filter(s=>s==='请假').length, wake_nc: Object.values(recMap).filter(s=>s==='无课').length, battle: beds.filter(b=>isBattle(b.floor)).length};
+                // 5. 统计
+                const stat = {total: beds.length, occupied: beds.filter(b => b.status === 'OC').length,
+                    battle: beds.filter(isBattle).length,
+                    wake_ok: Object.values(recMap).filter(s => s === '应答').length,
+                    wake_no: Object.values(recMap).filter(s => s === '未应答').length,
+                    wake_leave: Object.values(recMap).filter(s => s === '请假').length,
+                    wake_nc: Object.values(recMap).filter(s => s === '无课').length};
                 stats.innerHTML = [
                     ['总床位', stat.total, '#3370ff'], ['在住', stat.occupied, '#2684ff'],
-                    ['⚡战斗区', stat.battle, '#af6200'], ['应答', stat.wake_ok, '#00b42a'],
+                    ['⚔战斗区', stat.battle, '#af6200'], ['应答', stat.wake_ok, '#00b42a'],
                     ['未应答', stat.wake_no, '#f53f3f'], ['请假', stat.wake_leave, '#f59d23'],
                     ['无课', stat.wake_nc, '#78869b']
                 ].map(c => '<div style="background:#fff;border:1px solid #e5e6eb;border-radius:10px;padding:12px;text-align:center">' +
                     '<div style="font-size:0.75rem;color:#86909c">' + c[0] + '</div>' +
-                    '<div style="font-size:1.4rem;font-weight:800;color:' + c[2] + '">' + c[1] + '</div></div>').join('');
+                    '<div style="font-size:1.4rem;font-weight:800;color:' + c[2] + '"' + (c[0] === '⚔战斗区' ? ' id="bmStatBattle"' : '') + '>' + c[1] + '</div></div>').join('');
             } catch(e) {
-                body.innerHTML = '<tr><td colspan="9" style="color:#f53f3f;text-align:center;padding:30px">加载失败: ' + e.message + '</td></tr>';
+                body.innerHTML = '<tr><td colspan="10" style="color:#f53f3f;text-align:center;padding:30px">加载失败: ' + e.message + '</td></tr>';
             }
         }
 
+        // 单床勾选/取消战斗区（行内复选框，实时保存并同步高亮/统计）
+        async function toggleBedBattle(cb, hotelId) {
+            const zone = bmZones[hotelId] || (bmZones[hotelId] = {floors: [], beds: []});
+            const tr = cb.closest('tr');
+            const code = tr.getAttribute('data-rc') || '';
+            if (!code) return;
+            const floorText = tr.children[1] ? tr.children[1].textContent : '';
+            const fm = floorText.match(/(\d+)/);
+            const floorNo = fm ? parseInt(fm[1]) : 999;
+            const wasBattle = zone.floors.includes(floorNo) || zone.beds.includes(code);
+            if (cb.checked) { if (!zone.beds.includes(code)) zone.beds.push(code); }
+            else { zone.beds = zone.beds.filter(x => x !== code); }
+            const nowBattle = zone.floors.includes(floorNo) || zone.beds.includes(code);
+            tr.style.background = nowBattle ? '#fff7e6' : '';
+            const bc = document.getElementById('bmStatBattle');
+            if (bc) {
+                bc.textContent = (parseInt(bc.textContent) || 0) + ((nowBattle ? 1 : 0) - (wasBattle ? 1 : 0));
+            }
+            try {
+                const r = await fetch('/api/battle/save', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({hotel_id: hotelId, floors: zone.floors, beds: zone.beds})
+                });
+                const d = await r.json();
+                if (d.code !== 200) { alert('❌ ' + (d.msg || '保存失败')); loadBedManage(); }
+            } catch(e) { alert('❌ ' + e.message); loadBedManage(); }
+        }
         async function saveWake(status, hotelId, date, btn) {
             // 从按钮所在行取数据（用data属性）
             const tr = btn.closest('tr');
@@ -3609,7 +3753,8 @@
                 };
                 walk(tree);
                 const floors = Object.keys(floorSet).map(f => parseInt(f)).filter(f => !isNaN(f)).sort((a,b)=>a-b);
-                const saved = bmZones[hotelId] || [];
+                const zone = bmZones[hotelId] || {floors: [], beds: []};
+                const saved = zone.floors;
                 box.innerHTML = floors.map(f =>
                     '<label style="display:flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid #e5e6eb;border-radius:8px;cursor:pointer;background:' + (saved.includes(f) ? '#fff7e6' : '#fff') + '">' +
                     '<input type="checkbox" value="' + f + '" ' + (saved.includes(f) ? 'checked' : '') + ' onchange="this.parentElement.style.background=this.checked?\'#fff7e6\':\'#fff\'">' + f + '楼</label>'
@@ -3622,18 +3767,226 @@
             const hotelId = document.getElementById('bcCampus').value;
             if (!hotelId) { alert('请选择校区'); return; }
             const floors = [...document.querySelectorAll('#bcFloors input:checked')].map(i => parseInt(i.value));
+            const zone = bmZones[hotelId] || {floors: [], beds: []};
             try {
                 const r = await fetch('/api/battle/save', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({hotel_id: hotelId, floors: floors})
+                    body: JSON.stringify({hotel_id: hotelId, floors: floors, beds: zone.beds})
                 });
                 const d = await r.json();
                 if (d.code === 200) {
-                    bmZones[hotelId] = floors;
+                    bmZones[hotelId] = {floors: floors, beds: zone.beds};
                     alert('✅ 战斗区配置已保存');
                     document.getElementById('battleConfigModal').style.display = 'none';
                     loadBedManage();
                 } else alert('❌ ' + (d.msg || '保存失败'));
+            } catch(e) { alert('❌ ' + e.message); }
+        }
+
+        // ========== 权限管理（仅管理员） ==========
+        let adminWsData = [];
+        let adminUserData = [];
+        let adminModulesCatalog = null;
+
+        function arr(v) {
+            try { var a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; }
+            catch(e) { return []; }
+        }
+        function escHtml(s) {
+            return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+        function hotelName(id) {
+            var h = HOTELS.find(function(x) { return String(x.id) === String(id); });
+            return h ? h.name : id;
+        }
+
+        function switchAdminTab(n) {
+            document.getElementById('adminTabWs').className = n === 1 ? 'admin-tab active' : 'admin-tab';
+            document.getElementById('adminTabUs').className = n === 2 ? 'admin-tab active' : 'admin-tab';
+            document.getElementById('adminWsPanel').style.display = n === 1 ? 'block' : 'none';
+            document.getElementById('adminUserPanel').style.display = n === 2 ? 'block' : 'none';
+            if (n === 1) renderWsList(); else renderUserList();
+        }
+
+        async function initAdminPage() {
+            try {
+                const [m, w, u] = await Promise.all([
+                    fetch('/api/auth/modules').then(function(r) { return r.json(); }),
+                    fetch('/api/auth/workspaces').then(function(r) { return r.json(); }),
+                    fetch('/api/auth/users').then(function(r) { return r.json(); })
+                ]);
+                adminModulesCatalog = (m && m.modules) || {};
+                adminWsData = (w && w.workspaces) || [];
+                adminUserData = (u && u.users) || [];
+            } catch(e) {
+                adminWsData = []; adminUserData = [];
+            }
+            switchAdminTab(1);
+        }
+
+        function toggleChip(el) {
+            el.classList.toggle('on');
+            el.classList.toggle('off');
+        }
+        function getChips(prefix) {
+            return Array.prototype.map.call(document.querySelectorAll('.chip[data-g="' + prefix + '"].on'),
+                function(el) { return el.getAttribute('data-k'); });
+        }
+        function moduleChips(selected, idPrefix) {
+            var keys = Object.keys(adminModulesCatalog || {});
+            return '<div class="chips">' + keys.map(function(k) {
+                return '<span class="chip' + (selected.indexOf(k) >= 0 ? ' on' : ' off') + '" data-k="' + k + '" data-g="' + idPrefix + '" onclick="toggleChip(this)">' + adminModulesCatalog[k] + '</span>';
+            }).join('') + '</div>';
+        }
+        function campusChips(selected, idPrefix) {
+            return '<div class="chips">' + HOTELS.map(function(h) {
+                return '<span class="chip' + (selected.indexOf(h.id) >= 0 ? ' on' : ' off') + '" data-k="' + h.id + '" data-g="' + idPrefix + '" onclick="toggleChip(this)">' + h.name + '</span>';
+            }).join('') + '</div>';
+        }
+
+        function renderWsList() {
+            var box = document.getElementById('adminWsList');
+            if (!adminWsData.length) { box.innerHTML = '<div class="loading">暂无工作区</div>'; return; }
+            box.innerHTML = adminWsData.map(function(ws) {
+                var mods = arr(ws.modules);
+                var cps = arr(ws.campuses);
+                return '<div class="ws-card">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">' +
+                    '<div><h3>' + escHtml(ws.name) + (cps.length ? ' <span style="font-size:0.75rem;color:#1a73e8">校区限定</span>' : '') + '</h3>' +
+                    '<div class="ws-remark">' + escHtml(ws.remark || '') + '</div></div>' +
+                    '<div style="display:flex;gap:8px"><button class="btn small-btn" onclick="showWsForm(' + ws.id + ')">✏️ 编辑</button>' +
+                    '<button class="btn small-btn danger-btn" onclick="deleteWs(' + ws.id + ')">删除</button></div></div>' +
+                    '<div class="chips">' + mods.map(function(m) {
+                        return '<span class="chip on" style="cursor:default">' + ((adminModulesCatalog && adminModulesCatalog[m]) || m) + '</span>';
+                    }).join('') + '</div>' +
+                    (cps.length ? '<div class="chips">' + cps.map(function(c) {
+                        return '<span class="chip on" style="cursor:default">📍 ' + hotelName(c) + '</span>';
+                    }).join('') + '</div>' : '') +
+                    '</div>';
+            }).join('');
+        }
+
+        function showWsForm(id) {
+            var box = document.getElementById('adminWsForm');
+            var ws = id ? adminWsData.find(function(w) { return w.id === id; }) : null;
+            box.innerHTML = '<div class="admin-form">' +
+                '<div class="admin-form-row"><div><label>工作区名称</label><input type="text" id="wsfName" value="' + (ws ? escHtml(ws.name) : '') + '"></div>' +
+                '<div style="flex:2"><label>说明（可选）</label><input type="text" id="wsfRemark" value="' + (ws ? escHtml(ws.remark || '') : '') + '"></div></div>' +
+                '<div><label>开放模块（勾选）</label>' + moduleChips(ws ? arr(ws.modules) : [], 'wsfM') + '</div>' +
+                '<div><label>校区范围（不勾选 = 全部校区）</label>' + campusChips(ws ? arr(ws.campuses) : [], 'wsfC') + '</div>' +
+                '<div class="admin-actions"><button class="btn" onclick="document.getElementById(\'adminWsForm\').innerHTML=\'\';renderWsList()">取消</button>' +
+                '<button class="btn btn-primary" onclick="saveWs(' + (id || 'null') + ')">保存</button></div></div>';
+            box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        async function saveWs(id) {
+            var name = document.getElementById('wsfName').value.trim();
+            if (!name) { alert('请填写工作区名称'); return; }
+            var payload = {
+                name: name,
+                remark: document.getElementById('wsfRemark').value,
+                modules: getChips('wsfM'),
+                campuses: getChips('wsfC')
+            };
+            try {
+                var r = await fetch(id ? '/api/auth/workspaces/' + id : '/api/auth/workspaces', {
+                    method: id ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                var d = await r.json();
+                if (d.code === 200) {
+                    alert('✅ ' + (d.msg || '已保存'));
+                    document.getElementById('adminWsForm').innerHTML = '';
+                    await initAdminPage();
+                } else alert('❌ ' + d.msg);
+            } catch(e) { alert('❌ ' + e.message); }
+        }
+
+        async function deleteWs(id) {
+            if (!confirm('确定删除该工作区？相关账号将失去对应权限')) return;
+            try {
+                var r = await fetch('/api/auth/workspaces/' + id, { method: 'DELETE' });
+                var d = await r.json();
+                if (d.code === 200) { alert('✅ 已删除'); await initAdminPage(); }
+                else alert('❌ ' + d.msg);
+            } catch(e) { alert('❌ ' + e.message); }
+        }
+
+        function renderUserList() {
+            var body = document.getElementById('adminUserBody');
+            if (!adminUserData.length) { body.innerHTML = '<tr><td colspan="6">暂无账号</td></tr>'; return; }
+            body.innerHTML = adminUserData.map(function(u) {
+                var wsNames = arr(u.workspace_ids).map(function(id) {
+                    var w = adminWsData.find(function(x) { return x.id === id; });
+                    return w ? w.name : id;
+                });
+                return '<tr>' +
+                    '<td class="name-cell">' + escHtml(u.username) + '</td>' +
+                    '<td>' + escHtml(u.display_name || '-') + '</td>' +
+                    '<td style="text-align:left">' + escHtml(wsNames.join('、') || '-') + '</td>' +
+                    '<td>' + (u.is_admin ? '是' : '-') + '</td>' +
+                    '<td>' + (u.enabled ? '<span style="color:#30a46c">正常</span>' : '<span style="color:#e5484d">停用</span>') + '</td>' +
+                    '<td style="white-space:nowrap"><button class="btn small-btn" onclick="showUserForm(' + u.id + ')">✏️ 编辑</button> ' +
+                    '<button class="btn small-btn danger-btn" onclick="deleteUser(' + u.id + ')">删除</button></td></tr>';
+            }).join('');
+        }
+
+        function showUserForm(id) {
+            var box = document.getElementById('adminUserForm');
+            var u = id ? adminUserData.find(function(x) { return x.id === id; }) : null;
+            var wsIds = u ? arr(u.workspace_ids) : [];
+            box.innerHTML = '<div class="admin-form">' +
+                '<div class="admin-form-row">' +
+                '<div><label>登录账号</label><input type="text" id="usfName" value="' + (u ? escHtml(u.username) : '') + '"></div>' +
+                '<div><label>姓名（显示用）</label><input type="text" id="usfDisplay" value="' + (u ? escHtml(u.display_name || '') : '') + '"></div>' +
+                '<div><label>密码' + (u ? '（留空不修改）' : '') + '</label><input type="password" id="usfPass" placeholder="至少4位"></div>' +
+                '</div>' +
+                '<div><label>所属工作区（勾选，权限取并集）</label><div class="chips">' + adminWsData.map(function(w) {
+                    return '<span class="chip' + (wsIds.indexOf(w.id) >= 0 ? ' on' : ' off') + '" data-k="' + w.id + '" data-g="usfW" onclick="toggleChip(this)">' + escHtml(w.name) + '</span>';
+                }).join('') + '</div></div>' +
+                '<div class="admin-form-row"><label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="usfAdmin" ' + (u && u.is_admin ? 'checked' : '') + '> 管理员（拥有全部模块）</label>' +
+                '<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="usfEnabled" ' + (!u || u.enabled ? 'checked' : '') + '> 启用该账号</label></div>' +
+                '<div class="admin-actions"><button class="btn" onclick="document.getElementById(\'adminUserForm\').innerHTML=\'\';renderUserList()">取消</button>' +
+                '<button class="btn btn-primary" onclick="saveUser(' + (id || 'null') + ')">保存</button></div></div>';
+            box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        async function saveUser(id) {
+            var name = document.getElementById('usfName').value.trim();
+            if (!name) { alert('请填写登录账号'); return; }
+            var payload = {
+                username: name,
+                display_name: document.getElementById('usfDisplay').value.trim(),
+                password: document.getElementById('usfPass').value || null,
+                workspace_ids: getChips('usfW').map(Number),
+                is_admin: document.getElementById('usfAdmin').checked,
+                enabled: document.getElementById('usfEnabled').checked
+            };
+            if (!id && !payload.password) { alert('请填写初始密码'); return; }
+            try {
+                var r = await fetch(id ? '/api/auth/users/' + id : '/api/auth/users', {
+                    method: id ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                var d = await r.json();
+                if (d.code === 200) {
+                    alert('✅ ' + (d.msg || '已保存'));
+                    document.getElementById('adminUserForm').innerHTML = '';
+                    await initAdminPage();
+                } else alert('❌ ' + d.msg);
+            } catch(e) { alert('❌ ' + e.message); }
+        }
+
+        async function deleteUser(id) {
+            if (currentUser && id === currentUser.id) { alert('不能删除当前登录的账号'); return; }
+            if (!confirm('确定删除该账号？')) return;
+            try {
+                var r = await fetch('/api/auth/users/' + id, { method: 'DELETE' });
+                var d = await r.json();
+                if (d.code === 200) { alert('✅ 已删除'); await initAdminPage(); }
+                else alert('❌ ' + d.msg);
             } catch(e) { alert('❌ ' + e.message); }
         }
 
