@@ -10,6 +10,12 @@ from socketserver import ThreadingMixIn
 import urllib.request, json, os, uuid, sqlite3, hashlib, secrets
 from pathlib import Path
 
+# 清除可能继承的无效代理环境变量（避免 urllib 走坏代理导致外部请求失败）
+for _k in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+           "http_proxy", "https_proxy", "all_proxy", "no_proxy",
+           "GIT_HTTP_PROXY", "GIT_HTTPS_PROXY"):
+    os.environ.pop(_k, None)
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 配置
