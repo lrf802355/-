@@ -267,6 +267,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         if path == "/api/auth/login":
             self.auth_login()
+        elif path == "/api/auth/me/update":
+            self.auth_me_update()
         elif path == "/api/auth/logout":
             self.auth_logout()
         elif path == "/api/auth/workspaces":
@@ -2456,9 +2458,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 result = json.loads(resp.read().decode())
                 if result.get("token"):
                     self.save_token(result["token"])
-                    # AMS 登录成功视为系统管理员，自动建立本地会话
-                    session_token = self._admin_session()
-                    self.send_json({"code": 200, "msg": "登录成功", "session_token": session_token})
+                    # AMS 登录成功后按身份匹配本地账号并建立会话
+                    session_token, account_name, matched, is_new = self._session_for_ams_identity()
+                    self.send_json({"code": 200, "msg": "登录成功",
+                                    "session_token": session_token, "account_name": account_name,
+                                    "matched": matched, "is_new": is_new})
                 else:
                     self.send_json({"code": 400, "msg": result.get("msg", "登录失败")}, 400)
         except Exception as e:
@@ -2475,6 +2479,78 @@ class ProxyHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
         return None
+
+    def _session_for_ams_identity(self):
+        """扫码/AMS密码登录后，把AMS身份映射到本地账号：
+        1) 用刚保存的AMS token 调 getInfo 获取扫码人姓名
+        2) 按 本地用户名 或 显示姓名 精确匹配启用的账号 → 为该账号建会话
+        3) 未匹配时自动创建本地账号（默认绑定第一个非管理后台工作区，密码随机，仅扫码可登录）
+        返回 (session_token, 账号显示名或None, 是否匹配/注册成功, 是否新注册)
+        """
+        token = self.get_token()
+        identity = None
+        if token:
+            try:
+                req = urllib.request.Request(f"{AMS_BASE}/hotel/web/getInfo",
+                                             headers={"Authorization": f"Bearer {token}"})
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    data = json.loads(resp.read().decode())
+                user = (data or {}).get("user") or {}
+                identity = (user.get("userName") or user.get("nickName") or "").strip()
+            except Exception:
+                identity = None
+        if identity:
+            try:
+                conn = self._auth_conn()
+                row = conn.execute(
+                    "SELECT id, display_name, username FROM users "
+                    "WHERE enabled=1 AND (username=? OR display_name=?) "
+                    "ORDER BY is_admin ASC, id ASC LIMIT 1", (identity, identity)).fetchone()
+                if row:
+                    conn.close()
+                    return self._new_session(row["id"]), row["display_name"] or row["username"], True, False
+                # 未匹配：自动创建本地账号（若存在同名禁用账号则启用）
+                existing = conn.execute("SELECT id, display_name, username FROM users WHERE username=? ORDER BY id LIMIT 1",
+                                        (identity,)).fetchone()
+                if existing:
+                    conn.execute("UPDATE users SET display_name=?, enabled=1 WHERE id=?",
+                                 (identity, existing["id"]))
+                    user_id = existing["id"]
+                    conn.commit()
+                    conn.close()
+                    return self._new_session(user_id), identity, True, True
+                ws = conn.execute("SELECT id FROM workspaces WHERE name != '管理后台' ORDER BY id LIMIT 1").fetchone()
+                ws_ids = json.dumps([ws["id"]]) if ws else "[]"
+                salt = secrets.token_hex(16)
+                cur = conn.execute(
+                    "INSERT INTO users (username, password_hash, salt, display_name, workspace_ids, is_admin, enabled) "
+                    "VALUES (?,?,?,?,?,0,1)",
+                    (identity, _hash_password(secrets.token_urlsafe(12), salt), salt, identity, ws_ids))
+                user_id = cur.lastrowid
+                conn.commit()
+                conn.close()
+                return self._new_session(user_id), identity, True, True
+            except Exception:
+                pass
+        return self._admin_session(), identity, False, False
+
+    def auth_me_update(self):
+        """当前账号完善/修改本人资料（姓名）"""
+        user = self._session_user()
+        if not user:
+            return self.send_json({"code": 401, "msg": "未登录"}, 401)
+        data = self._read_json_body()
+        display_name = (data.get("display_name") or "").strip()
+        if not display_name:
+            return self.send_json({"code": 400, "msg": "姓名不能为空"}, 400)
+        try:
+            conn = self._auth_conn()
+            conn.execute("UPDATE users SET display_name=? WHERE id=?", (display_name, user["id"]))
+            conn.commit()
+            conn.close()
+            return self.send_json({"code": 200, "msg": "已保存"})
+        except Exception as e:
+            return self.send_json({"code": 500, "msg": str(e)}, 500)
 
     def proxy_api(self, api_path):
         token = self.get_token()
@@ -2554,8 +2630,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 result = json.loads(resp.read().decode())
                 if result.get("token"):
                     self.save_token(result["token"])
-                    # 扫码登录成功视为系统管理员
-                    result["session_token"] = self._admin_session()
+                    # 扫码成功后按身份匹配本地账号并建立会话
+                    result["session_token"], result["account_name"], result["matched"], result["is_new"] = self._session_for_ams_identity()
                 self.send_json(result)
         except Exception as e:
             self.send_json({"code": 500, "msg": str(e)}, 500)

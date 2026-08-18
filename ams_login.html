@@ -110,7 +110,17 @@ function checkQr() {
       fetch('/qr-auth/' + encodeURIComponent(qrUuid)).then(function(r) { return r.json(); }).then(function(a) {
         if (a.session_token) {
           localStorage.setItem('ams_session', a.session_token);
-          window.location.href = '/';
+          if (a.is_new) {
+            localStorage.setItem('ams_new_account', '1');
+            st.textContent = '已为你自动创建账号：' + (a.account_name || '') + '，正在进入...';
+          } else if (a.matched) {
+            st.textContent = '已识别账号：' + (a.account_name || '') + '，正在进入...';
+          } else if (a.account_name) {
+            st.textContent = '微信账号「' + a.account_name + '」未关联工作台账号，将以管理员身份进入...';
+          } else {
+            st.textContent = '识别成功，正在进入...';
+          }
+          setTimeout(function() { window.location.href = '/'; }, 800);
         } else if (a.token || a.code === 200) {
           window.location.href = '/';
         } else {
