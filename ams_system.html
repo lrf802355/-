@@ -634,7 +634,7 @@
         <div class="nav-item" data-module="linen" onclick="showPage('linen', event)"><span class="nav-icon">🧺</span>布草管理</div>
         <div class="nav-item" data-module="board" onclick="showPage('board', event)"><span class="nav-icon">🛏️</span>包住对比</div>
         <div class="nav-item" data-module="test" onclick="showPage('test', event)"><span class="nav-icon">🗺️</span>校区地图</div>
-        <div class="nav-item" data-module="bedmanage" onclick="showPage('bedmanage', event)"><span class="nav-icon">🛏️</span>床位管理</div>
+        <div class="nav-item" data-module="bedmanage" onclick="showPage('bedmanage', event)"><span class="nav-icon">🛏️</span>叫醒服务</div>
         <div class="nav-item" data-admin="1" style="display:none" onclick="showPage('admin', event)"><span class="nav-icon">🔐</span>权限管理</div>
         <div class="sidebar-footer"><strong>工作台 v2.0</strong>数据每 5 分钟自动缓存</div>
     </div>
@@ -1219,7 +1219,7 @@
 
         <!-- 床位管理页 -->
         <div id="bedmanage-page" class="page">
-            <h1>🛏️ 床位管理</h1>
+            <h1>🛏️ 叫醒服务</h1>
             <div class="page-sub">AMS床位只读查看 + 叫醒登记（生活老师填写，数据存本机）</div>
 
             <!-- 工具栏 -->
@@ -1336,6 +1336,22 @@
                     </table>
                 </div>
                 <div id="adminUserForm"></div>
+            </div>
+        </div>
+
+        <!-- 新账号首次登录：完善个人信息 -->
+        <div id="myInfoModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);z-index:2000;justify-content:center;align-items:center">
+            <div style="background:#fff;border-radius:14px;padding:22px;width:380px;max-width:92vw">
+                <h3 style="margin:0 0 6px">完善个人信息</h3>
+                <div style="font-size:0.85rem;color:#4e5969;margin-bottom:14px">已自动为你创建账号，请确认姓名（将显示在系统右上角）。模块权限默认为「公寓运营」，如需调整请联系管理员。</div>
+                <div style="margin-bottom:16px">
+                    <label style="font-size:0.85rem;color:#4e5969">姓名</label>
+                    <input type="text" id="myInfoName" style="width:100%;margin-top:6px;padding:9px 12px;border:1px solid #dde3ea;border-radius:8px;font-size:14px" maxlength="20">
+                </div>
+                <div style="display:flex;gap:10px;justify-content:flex-end">
+                    <button class="btn" onclick="skipMyInfo()">跳过</button>
+                    <button class="btn btn-primary" onclick="saveMyInfo()">保存</button>
+                </div>
             </div>
         </div>
     </div>
@@ -2776,12 +2792,50 @@
             if (tu && currentUser) {
                 tu.textContent = (currentUser.display_name || currentUser.username) + (currentUser.is_admin ? '（管理员）' : '');
             }
+            // 新账号首次登录：弹出完善个人信息
+            if (localStorage.getItem('ams_new_account')) {
+                showMyInfoModal();
+            }
             document.querySelectorAll('.nav-item[data-module]').forEach(function(el) {
                 var mod = el.getAttribute('data-module');
                 el.style.display = (currentModules.indexOf(mod) >= 0) ? '' : 'none';
             });
             var adminNav = document.querySelector('.nav-item[data-admin]');
             if (adminNav) adminNav.style.display = (currentUser && currentUser.is_admin) ? '' : 'none';
+        }
+
+        // 新账号首次登录：完善个人信息弹窗
+        function showMyInfoModal() {
+            var input = document.getElementById('myInfoName');
+            if (input && currentUser) {
+                input.value = currentUser.display_name || currentUser.username || '';
+            }
+            var m = document.getElementById('myInfoModal');
+            if (m) m.style.display = 'flex';
+        }
+        async function saveMyInfo() {
+            var name = (document.getElementById('myInfoName').value || '').trim();
+            if (!name) { alert('请输入姓名'); return; }
+            try {
+                var r = await fetch('/api/auth/me/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ display_name: name })
+                });
+                var d = await r.json();
+                if (d.code === 200) {
+                    if (currentUser) currentUser.display_name = name;
+                    var tu = document.getElementById('topbarUser');
+                    if (tu) tu.textContent = name + (currentUser && currentUser.is_admin ? '（管理员）' : '');
+                    document.getElementById('myInfoModal').style.display = 'none';
+                    localStorage.removeItem('ams_new_account');
+                    alert('✅ 个人信息已保存');
+                } else alert('❌ ' + (d.msg || '保存失败'));
+            } catch(e) { alert('❌ ' + e.message); }
+        }
+        function skipMyInfo() {
+            document.getElementById('myInfoModal').style.display = 'none';
+            localStorage.removeItem('ams_new_account');
         }
 
         // 退出登录
@@ -3567,7 +3621,7 @@
             });
         }
 
-        // ========== 床位管理（AMS只读 + 叫醒登记）==========
+        // ========== 叫醒服务（AMS只读 + 叫醒登记）==========
         let bmCache = {};  // hotelId -> {bldgName, floorName, rooms[]}
         let bmZones = {};  // hotelId -> {floors:[], beds:[]}
         let bmRecords = {};  // date_hotelId -> {roomCode_bedName: status}
