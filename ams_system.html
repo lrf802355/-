@@ -3656,7 +3656,14 @@
                 ).join('');
 
                 let html = '';
-                (battleOnly ? beds.filter(isBattle) : beds).forEach(b => {
+                // 叫醒登记后自动沉底：未登记的在住床位排最前（点第一个即可），已登记的排后面
+                const shown = battleOnly ? beds.filter(isBattle) : beds;
+                shown.sort((a, b) => {
+                    const pa = (recMap[a.roomCode + '_' + a.bedNo] ? 1 : 0) * 2 + (a.status === 'OC' ? 0 : 1);
+                    const pb = (recMap[b.roomCode + '_' + b.bedNo] ? 1 : 0) * 2 + (b.status === 'OC' ? 0 : 1);
+                    return pa - pb;
+                });
+                shown.forEach(b => {
                     // 匹配在住学员：精确床位名 > 归一化房名 > 纯房号兜底（仅限在住床位，避免空闲床显示室友）
                     let occs = occExact[b.roomName] || [];
                     if (!occs.length && b.status === 'OC') occs = occNorm[normRoomName(b.roomName)] || [];
